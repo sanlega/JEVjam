@@ -79,3 +79,40 @@ def test_fixed_key_restricts_chords_and_sets_key():
     assert snap.key[:2] == (4, "major")
     allowed = theory.diatonic_chords(4, "major")
     assert snap.chord is None or (snap.chord[0], snap.chord[1]) in allowed
+
+
+from jevjam.keyfinder import KeyTracker  # noqa: E402
+
+KEY_CASES = {
+    ("C", "G", "F", "G"): "C major",  # el croma solo dice G mayor (sesión real 2026-09-30 15:09)
+    ("Am", "F", "C", "G"): "A minor", ("C", "Am", "F", "G"): "C major",
+    ("E", "A", "B", "E"): "E major", ("Dm", "G", "C", "C"): "C major", ("F", "Bb", "C7", "F"): "F major",
+    ("Gm", "Eb", "Bb", "F"): "G minor", ("Em", "C", "D", "Bm"): "E minor", ("G", "D", "Em", "C"): "G major",
+    ("Am", "Dm", "E7", "Am"): "A minor", ("D", "A", "Bm", "G"): "D major",
+}
+
+
+@pytest.mark.parametrize("prog,expected", KEY_CASES.items())
+def test_key_from_chords(prog, expected):
+    kt = KeyTracker()
+    for i in range(12):
+        result = kt.update(prog[i % 4])
+    assert theory.key_name(*result[:2]) == expected
+
+
+@pytest.mark.parametrize("before,after,expected", [
+    (["C", "G", "F", "G"], ["D", "A", "G", "A"], "D major"),
+    (["Am", "F", "C", "G"], ["Em", "C", "D", "Bm"], "E minor"),
+    (["C", "Am", "F", "G"], ["F", "Dm", "Bb", "C"], "F major"),
+])
+def test_key_follows_modulation_within_six_bars(before, after, expected):
+    kt = KeyTracker()
+    keys = [theory.key_name(*kt.update(c)[:2]) for c in before * 3 + after * 3]
+    assert all(k == expected for k in keys[12 + 6:])
+
+
+def test_key_ignores_unclear_bars():
+    kt = KeyTracker()
+    for c in ["C", "N", "F", "G", "N", "C", "F", "G"]:
+        result = kt.update(c)
+    assert theory.key_name(*result[:2]) == "C major"

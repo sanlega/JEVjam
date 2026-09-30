@@ -224,8 +224,14 @@ def main(argv=None) -> int:
               f"comparables ({100 * sum(band_vs_human) / len(band_vs_human):.0f} %)")
     known = sum(b["band"]["chord_known"] for b in bars)
     print(f"· La banda conocía la progresión (bajo y teclado tocando) en {known}/{len(bars)} compases")
-    print(f"· Tonalidad sobre toda la grabación: "
-          + ", ".join(f"{k} ({s:.2f})" for k, s in whole_file_key(folder)))
+    from .keyfinder import key_from_chords
+
+    by_chords = key_from_chords(human_chords, [np.array(b["human"]["chroma"]) for b in bars])
+    band_keys = Counter(b["band"]["key"] for b in bars)
+    print(f"· Tonalidad por acordes (la que usa la banda sin --key): "
+          f"{theory.key_name(*by_chords[:2]) + f' (confianza {by_chords[2]:.2f})' if by_chords else '—'}; "
+          f"solo por croma: " + ", ".join(f"{k} ({s:.2f})" for k, s in whole_file_key(folder)))
+    print(f"· Tonalidad con la que tocó la banda: {band_keys.most_common(3)}")
     # La energía que decide Jev para el compás N se pidió con lo oído hasta el N-1.
     r_loud = _corr(loud[:-1], energy[1:])
     r_dens = _corr(dens[:-1], energy[1:])

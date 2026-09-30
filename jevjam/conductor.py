@@ -31,6 +31,7 @@ from .analysis import Analyzer, Snapshot, Window
 from .band import Band, Harmony
 from .brain import AGENT_OPTIONS, Decision, DecisionWorker
 from .context import BandMemory, build_state
+from .keyfinder import KeyTracker
 from .midi_out import Scheduler
 
 HARMONIC_AGENTS = ("bass", "keys")
@@ -94,6 +95,7 @@ class Conductor:
         self._last_harmony: Harmony | None = None
         self.beats: list[Beat] = []  # pulsos de la banda, alineados: el índice 0 es un pulso 1
         self._sent: dict[int, tuple[dict, float]] = {}  # compás → (estado enviado a Jev, instante)
+        self.key_tracker = None if fixed_key else KeyTracker(bars_per_phrase=4)
         threading.Thread(target=self._analysis_loop, daemon=True, name="analysis").start()
 
     # ----------------------------------------------------------- audio → análisis
@@ -140,8 +142,17 @@ class Conductor:
         ch = self.analyzer.chord_of(w.chroma) if loud else None
         return Beat(theory.chord_name(ch[0], ch[1]) if ch else "N", w)
 
+    def _key(self, snap: Snapshot) -> tuple[int, str, float] | None:
+        """Tonalidad: la fija, la del rastreador por acordes o, al principio, la del croma."""
+        if self.analyzer.fixed_key:
+            return snap.key
+        if self.key_tracker and self.key_tracker.key:
+            return (*self.key_tracker.key, self.key_tracker.confidence)
+        return snap.key
+
     def _snap(self) -> Snapshot:
         snap = self.analyzer.snapshot()
+        snap.key = self._key(snap)
         snap.chord_history = self.chords
         bars = self.bar_chords()
         if bars and bars[-1] != "N":  # el acorde del último compás es más fiable que el del instante
@@ -221,6 +232,10 @@ class Conductor:
             self.beats = self.beats[-64:]  # múltiplo del compás: se mantiene la alineación
             heard = self.beats[-self.bpb:]
             self.memory.record_input(_loudness(heard), sum(b.window.onsets for b in heard) / self.bpb)
+            if self.key_tracker:
+                bar_chroma = sum(b.window.chroma for b in heard)
+                bc = self.analyzer.chord_of(bar_chroma)
+                self.key_tracker.update(theory.chord_name(*bc[:2]) if bc else "N", bar_chroma)
             self._record_bar(bar, bar_start, bpm, harmony, mode, parts, decision, events, heard)
             # 4) Seguimos al humano: tempo y fase se corrigen poco a poco, nunca de golpe.
             bpm, bar_start = self._follow(self.analyzer.snapshot(), bpm, bar_start + self.bpb * beat)
@@ -300,7 +315,8 @@ class Conductor:
     def _harmony(self, bar: int, patience_bars: int = 4) -> tuple[Harmony, str]:
         """Armonía del próximo compás y cómo se ha decidido (ver HARMONY_LABELS)."""
         snap = self.analyzer.snapshot()
-        key = snap.key if snap.key and snap.key[2] > 0.3 else (0, "major", 0.0)
+        key = self._key(snap)
+        key = key if key and key[2] > 0.3 else (0, "major", 0.0)
         bars = self.bar_chords()
         predicted = predict_next_chord(bars)
         if predicted:

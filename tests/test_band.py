@@ -117,6 +117,9 @@ def _conductor(fixed_key=None, bar_chords=()):
     c = Conductor.__new__(Conductor)
     c.bpb, c._last_harmony = 4, None
     c.analyzer = Analyzer(fixed_key=fixed_key)
+    from jevjam.keyfinder import KeyTracker
+
+    c.key_tracker = None if fixed_key else KeyTracker()
     chroma = {"C": [0, 4, 7], "F": [5, 9, 0], "G": [7, 11, 2], "Am": [9, 0, 4]}
     c.beats = []
     for name in bar_chords:

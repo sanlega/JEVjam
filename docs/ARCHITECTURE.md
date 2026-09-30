@@ -143,7 +143,7 @@ Todo numpy, hop de 512 muestras (10,7 ms), FFT de 4096; ~110× más rápido que 
 | Fase de pulso | media circular de la fase de los onsets | bajo ±30 ms/compás de corrección |
 | Pulso 1 | posición dominante de los cambios de acorde | alinea en 2‑3 compases |
 | Acorde | croma de energía (38 Hz‑2,1 kHz) vs plantillas con **serie armónica** modelada; penaliza séptimas | 56/56 en 7 progresiones sintéticas |
-| Tonalidad | Krumhansl‑Schmuckler sobre croma lento (20 s) | correcta o relativa (Am/C) |
+| Tonalidad | **rastreador por acordes** (`keyfinder.py`): encaje diatónico + presencia de la tónica + perfil de croma, con histéresis; o fija con `--key` | 11/11 progresiones; sigue modulaciones en 3‑5 compases; jam real C‑G‑F‑G: C mayor (solo croma: G mayor) |
 | Dinámica / tendencia / densidad / silencio | RMS en dB, 2 s vs 6 s previos, onsets/pulso | — |
 
 El acorde del **próximo** compás no se puede oír a tiempo: la banda **aprende la
@@ -236,6 +236,23 @@ armónicos de respaldo (`following`, `tonic`) tras 4 compases, y diagnóstico de
 
 Además, cada sesión se graba (`recording.py`) y se revisa (`review.py`), y se puede
 repetir una jam desde su `input.wav` para comparar versiones del código con la misma entrada.
+
+### Tonalidad en tiempo real: estado del arte y elección
+
+| Proyecto | Método | Tiempo real | Licencia |
+|---|---|---|---|
+| libKeyFinder (Mixxx) | croma + perfiles de tonalidad | pensado para pistas; usable por tramos | GPL‑3 |
+| Queen Mary key detector (qm‑dsp, Vamp) | croma + perfiles, incremental | sí | GPL |
+| Essentia `Key`/`KeyExtractor` | perfiles (Krumhansl, Temperley, edma…) | modo streaming | AGPL‑3 |
+| madmom | CNN | no (pista completa) | modelos no comerciales |
+| Antares Auto‑Key, Mixed In Key | propietarios | Auto‑Key sí | comercial |
+
+Todos comparan croma con perfiles, y con pocos compases confunden tonalidades vecinas
+(C y G mayor comparten 6 de 7 notas). Como JEVjam ya reconoce acordes por compás, la
+tonalidad se deduce de ellos: qué tonalidad contiene los acordes (el F natural descarta G
+mayor), cuál tiene su acorde de tónica presente y al abrir frase (C mayor frente a La
+menor), y el perfil de croma como desempate. Memoria con olvido 0,8 por compás y cambio
+solo si otra tonalidad gana 2 compases seguidos.
 
 ## 8. Limitaciones conocidas del PoC y siguientes pasos
 
