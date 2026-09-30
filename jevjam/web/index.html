@@ -78,6 +78,15 @@
   .meter { display: flex; gap: 4px; margin-top: 12px; }
   .meter i { flex: 1; height: 10px; border-radius: 3px; background: var(--panel-2); border: 1px solid var(--line); }
   .meter i.on { background: var(--accent); border-color: var(--accent); }
+  .vu { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; margin-top: 14px; }
+  .vu .vu-lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .vu .vu-bar { position: relative; height: 14px; border-radius: 4px; overflow: hidden;
+    background: linear-gradient(90deg, #2fa66a 0%, #3fb97f 70%, #e2c044 80%, #f5a524 90%, #e5484d 95%, #e5484d 100%); }
+  .vu .vu-mask { position: absolute; top: 0; right: 0; bottom: 0; width: 100%; background: var(--panel-2); }
+  .vu .vu-peak { position: absolute; top: 0; bottom: 0; width: 2px; left: 0; background: var(--text); opacity: 0; }
+  .vu .vu-val { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; min-width: 118px; text-align: right; color: var(--muted); }
+  .vu .vu-val.bad { color: var(--accent); } .vu .vu-val.low { color: var(--warn); } .vu .vu-val.good { color: var(--ok); }
+  .card .vu { margin-top: 12px; }
   .band { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
   @media (max-width: 700px) { .band { grid-template-columns: 1fr; } }
   .musician { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
@@ -124,7 +133,8 @@
         <select id="device"></select>
         <label class="field" for="channel">Canal de entrada</label>
         <select id="channel"></select>
-        <div class="hint">Usa auriculares: si el micro oye a la banda, se escucha a sí misma.</div>
+        <div class="vu" data-vu><span class="vu-lbl">nivel</span><div class="vu-bar"><div class="vu-mask"></div><div class="vu-peak"></div></div><span class="vu-val">—</span></div>
+        <div class="hint">Toca algo: si la barra no se mueve, no es el micro correcto. Usa auriculares: si el micro oye a la banda, se escucha a sí misma.</div>
       </div>
       <div data-show="input=demo">
         <label class="field" for="progression">Progresión del humano sintético</label>
@@ -190,6 +200,7 @@
             <span>Jev <b id="lat">—</b></span>
           </div>
           <div class="meter" id="meter" title="energía que pide Jev (0-5)"></div>
+          <div class="vu" data-vu><span class="vu-lbl">entrada</span><div class="vu-bar"><div class="vu-mask"></div><div class="vu-peak"></div></div><span class="vu-val">—</span></div>
         </div>
       </div>
       <div class="band">
@@ -261,7 +272,7 @@ function setSeg(name, v) {
   save();
 }
 document.querySelectorAll(".seg").forEach(seg => seg.addEventListener("click", e => {
-  if (e.target.dataset.v && !running) setSeg(seg.dataset.name, e.target.dataset.v);
+  if (e.target.dataset.v && !running) { setSeg(seg.dataset.name, e.target.dataset.v); updateMonitor(); }
 }));
 NOTES.forEach(n => $("tonic").add(new Option(n, n)));
 for (let i = 0; i < 6; i++) $("meter").appendChild(document.createElement("i"));
@@ -324,6 +335,7 @@ async function loadOptions() {
   if (saved.out && [...$("out").options].some(o => o.value === saved.out)) $("out").value = saved.out;
   fillSessions(options.sessions);
   setRunning(options.running);
+  updateMonitor();
 }
 
 // ------------------------------------------------------------ empezar / parar
@@ -348,6 +360,8 @@ function setRunning(on) {
   b.innerHTML = on ? "STOP<small>PARAR</small>" : "JAM<small>EMPEZAR</small>";
   b.setAttribute("aria-label", on ? "Parar la jam" : "Empezar la jam");
   document.querySelectorAll("section:first-child select, section:first-child input").forEach(el => el.disabled = on);
+  if (!on) setTimeout(updateMonitor, 300);  // al terminar, vuelve el vúmetro de prueba
+  else monitorOn = false;                   // la jam ya libera el monitor en el servidor
 }
 $("go").onclick = async () => {
   $("go").disabled = true;
@@ -441,8 +455,68 @@ function connect() {
   es.addEventListener("message", e => { const m = JSON.parse(e.data); logLine(m.text, m.level); });
   es.addEventListener("bar", e => onBar(JSON.parse(e.data)));
   es.addEventListener("summary", e => onSummary(JSON.parse(e.data)));
+  es.addEventListener("level", e => onLevel(JSON.parse(e.data)));
   es.onerror = () => { setStatus("error", "sin conexión con la app (¿está corriendo?)"); };
 }
+
+// ------------------------------------------------------------ vúmetro
+const VU = { target: -90, shown: -90, peak: -90, peakAt: 0, lastEvent: 0, rms: -90, peakRaw: -90 };
+const DB_MIN = -60;
+const pct = (db) => Math.max(0, Math.min(100, (db - DB_MIN) / -DB_MIN * 100));
+function onLevel(l) {
+  const now = performance.now();
+  VU.lastEvent = now;
+  VU.rms = l.rms_db; VU.peakRaw = l.peak_db;
+  VU.target = l.rms_db;
+  if (l.peak_db >= VU.peak || now - VU.peakAt > 1500) { VU.peak = l.peak_db; VU.peakAt = now; }
+}
+function vuVerdict() {
+  if (performance.now() - VU.lastEvent > 600) return ["—", ""];
+  if (VU.peakRaw > -1) return ["satura", "bad"];
+  if (VU.rms < -55) return ["sin señal", "bad"];
+  if (VU.rms < -40) return ["muy bajo", "low"];
+  return ["bien", "good"];
+}
+let vuT = performance.now();
+function vuFrame(t) {
+  const dt = (t - vuT) / 1000; vuT = t;
+  if (t - VU.lastEvent > 600) VU.target = -90;       // sin datos: cae
+  VU.shown = VU.target > VU.shown ? VU.target : Math.max(VU.target, VU.shown - 30 * dt);  // subida instantánea, caída 30 dB/s
+  if (t - VU.peakAt > 1500) VU.peak = Math.max(-90, VU.peak - 20 * dt);
+  const [word, cls] = vuVerdict();
+  document.querySelectorAll("[data-vu]").forEach(el => {
+    el.querySelector(".vu-mask").style.width = (100 - pct(VU.shown)) + "%";
+    const pk = el.querySelector(".vu-peak");
+    pk.style.left = `calc(${pct(VU.peak)}% - 2px)`; pk.style.opacity = VU.peak > DB_MIN ? 1 : 0;
+    const val = el.querySelector(".vu-val");
+    val.textContent = word === "—" ? "—" : `${VU.rms.toFixed(0)} dB · ${word}`;
+    val.className = "vu-val " + cls;
+  });
+  requestAnimationFrame(vuFrame);
+}
+requestAnimationFrame(vuFrame);
+
+// Probar el micro sin jam: el servidor lo abre solo mientras esta pestaña lo pida.
+let monitorOn = false;
+async function updateMonitor() {
+  const want = !running && state.input === "mic" && document.visibilityState === "visible" && $("device").value !== "";
+  try {
+    if (want) {
+      const r = await fetch("/api/monitor", { method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ device: $("device").value, channel: Number($("channel").value || 0) }) });
+      const j = await r.json();
+      if (j.error) logLine(j.error, "warning");
+      monitorOn = true;
+    } else if (monitorOn) {
+      monitorOn = false;
+      await fetch("/api/monitor/stop", { method: "POST" });
+    }
+  } catch {}
+}
+setInterval(updateMonitor, 10000);
+document.addEventListener("visibilitychange", updateMonitor);
+$("channel").addEventListener("change", updateMonitor);
+$("device").addEventListener("change", updateMonitor);
 
 // ------------------------------------------------------------ arranque
 for (const id of ["progression","demo_bpm","bpm","tonic","mode","bars"]) if (saved[id] !== undefined) $(id).value = saved[id];

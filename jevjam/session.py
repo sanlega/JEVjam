@@ -5,6 +5,7 @@ La usan la CLI (`python -m jevjam`) y la app (`python -m jevjam.app`). Los aviso
 
     status   {"state": starting|listening|playing|saving|done|error, "text"}
     message  {"text", "level": info|warning}
+    level    {"rms_db", "peak_db"} nivel de entrada ~20 veces por segundo (vúmetro)
     bar      lo que devuelve Conductor.on_bar (un compás)
     summary  {"jev": {...}, "folder", "warnings": [...]}
 """
@@ -114,7 +115,8 @@ class Session:
         conductor = self.conductor = Conductor(
             worker, scheduler, sr=cfg.sr, fixed_bpm=cfg.bpm, fixed_key=fixed_key, recorder=recorder,
             verbose=self.verbose, on_bar=on_bar,
-            on_message=lambda text, level: emit("message", {"text": text, "level": level}))
+            on_message=lambda text, level: emit("message", {"text": text, "level": level}),
+            on_level=lambda level: emit("level", level))
         source = None
         error = None
         try:

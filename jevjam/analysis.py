@@ -15,6 +15,27 @@ import numpy as np
 from . import theory
 
 
+class LevelMeter:
+    """Nivel de entrada para un vúmetro: RMS y pico en dBFS cada `interval` segundos de audio."""
+
+    def __init__(self, sr: int = 48000, interval: float = 0.05):
+        self.every = int(sr * interval)
+        self._sum2, self._peak, self._n = 0.0, 0.0, 0
+
+    def feed(self, block: np.ndarray) -> dict | None:
+        """Devuelve {"rms_db", "peak_db"} al completar un intervalo; si no, None."""
+        block = np.asarray(block, dtype=np.float32).reshape(-1)
+        self._sum2 += float(np.dot(block, block))
+        self._peak = max(self._peak, float(np.abs(block).max(initial=0.0)))
+        self._n += len(block)
+        if self._n < self.every:
+            return None
+        level = {"rms_db": round(10 * np.log10(self._sum2 / self._n + 1e-12), 1),
+                 "peak_db": round(20 * np.log10(self._peak + 1e-6), 1)}
+        self._sum2, self._peak, self._n = 0.0, 0.0, 0
+        return level
+
+
 @dataclass
 class Window:
     """Lo que sonó entre dos llamadas a `Analyzer.take_window()` (p. ej. un pulso de la banda)."""

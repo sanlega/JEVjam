@@ -14,6 +14,7 @@ import io
 import json
 import queue
 import threading
+import time
 import webbrowser
 from dataclasses import fields
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -43,7 +44,8 @@ class Hub:
 
     def emit(self, kind: str, data: dict) -> None:
         with self.lock:
-            self.history = (self.history + [(kind, data)])[-400:]
+            if kind != "level":  # el vúmetro no se guarda: solo interesa el valor actual
+                self.history = (self.history + [(kind, data)])[-400:]
             for q in list(self.subscribers):
                 q.put((kind, data))
 
@@ -52,6 +54,7 @@ class Hub:
             if self.running:
                 raise RuntimeError("ya hay una jam en marcha")
             self.history = []
+        MONITOR.stop()  # libera el micro para la jam
         self.session = Session(cfg, emit=self.emit)
 
         def run():
@@ -69,6 +72,66 @@ class Hub:
 
 
 HUB = Hub()
+
+
+class MicMonitor:
+    """Vúmetro sin jam: abre el micro elegido solo para medir el nivel.
+
+    Se apaga solo si la página deja de pedirlo (no deja el micro abierto si cierras la pestaña).
+    """
+
+    IDLE_S = 30
+
+    def __init__(self):
+        self.stream = None
+        self.key = None
+        self.last_ping = 0.0
+        self.lock = threading.Lock()
+        threading.Thread(target=self._watchdog, daemon=True, name="mic-monitor").start()
+
+    def start(self, device, channel: int, sr: int = 48000) -> None:
+        import sounddevice as sd
+
+        from .analysis import LevelMeter
+
+        with self.lock:
+            self.last_ping = time.monotonic()
+            if self.stream is not None and self.key == (device, channel):
+                return  # ya está abierto: solo renueva el plazo
+            self._close()
+            meter = LevelMeter(sr)
+
+            def callback(indata, frames, _t, _status):
+                level = meter.feed(indata[:, channel])
+                if level:
+                    HUB.emit("level", {**level, "monitor": True})
+
+            dev = int(device) if isinstance(device, str) and device.isdigit() else device
+            self.stream = sd.InputStream(samplerate=sr, blocksize=512, channels=channel + 1, dtype="float32",
+                                         device=dev, callback=callback)
+            self.stream.start()
+            self.key = (device, channel)
+
+    def stop(self) -> None:
+        with self.lock:
+            self._close()
+
+    def _close(self) -> None:
+        if self.stream is not None:
+            with contextlib.suppress(Exception):
+                self.stream.stop()
+                self.stream.close()
+        self.stream, self.key = None, None
+
+    def _watchdog(self) -> None:
+        while True:
+            time.sleep(2)
+            with self.lock:
+                if self.stream is not None and time.monotonic() - self.last_ping > self.IDLE_S:
+                    self._close()
+
+
+MONITOR = MicMonitor()
 
 
 def parse_config(body: dict) -> SessionConfig:
@@ -193,6 +256,18 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path == "/api/stop":
             HUB.stop()
             self._json({"ok": True})
+        elif url.path == "/api/monitor":
+            if HUB.running:
+                return self._json({"ok": False, "reason": "jam en marcha"})
+            body = self._body()
+            try:
+                MONITOR.start(body.get("device") or None, int(body.get("channel") or 0))
+                self._json({"ok": True})
+            except Exception as exc:  # dispositivo ocupado, canal inexistente…
+                self._json({"error": f"no puedo abrir el micro: {exc}"}, 400)
+        elif url.path == "/api/monitor/stop":
+            MONITOR.stop()
+            self._json({"ok": True})
         else:
             self._json({"error": "no encontrado"}, 404)
 
@@ -246,6 +321,7 @@ def main(argv=None) -> int:
     except KeyboardInterrupt:
         pass
     finally:
+        MONITOR.stop()
         HUB.stop()
         if HUB.thread:
             HUB.thread.join(timeout=15)  # deja guardar la grabación

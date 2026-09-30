@@ -27,7 +27,7 @@ from dataclasses import asdict, dataclass
 import numpy as np
 
 from . import theory
-from .analysis import Analyzer, Snapshot, Window
+from .analysis import Analyzer, LevelMeter, Snapshot, Window
 from .band import Band, Harmony
 from .brain import AGENT_OPTIONS, Decision, DecisionWorker
 from .context import BandMemory, build_state
@@ -75,7 +75,8 @@ class Conductor:
     def __init__(self, worker: DecisionWorker, scheduler: Scheduler, sr: int = 48000,
                  beats_per_bar: int = 4, fixed_bpm: float | None = None, input_latency_s: float = 0.0,
                  min_confidence: float = 0.25, verbose: bool = True,
-                 fixed_key: tuple[int, str] | None = None, recorder=None, on_bar=None, on_message=None):
+                 fixed_key: tuple[int, str] | None = None, recorder=None, on_bar=None, on_message=None,
+                 on_level=None):
         self.worker, self.scheduler = worker, scheduler
         self.analyzer = Analyzer(sr=sr, fixed_key=fixed_key)
         self.band = Band()
@@ -88,6 +89,8 @@ class Conductor:
         self.recorder = recorder
         # Avisos para interfaces (la app web): on_bar(dict) por compás, on_message(texto, nivel).
         self.on_bar, self.on_message = on_bar, on_message
+        self.on_level = on_level  # on_level({"rms_db", "peak_db"}) ~20 veces por segundo (vúmetro)
+        self._level = LevelMeter(sr)
         self.decision: Decision | None = None
         self.stats = {"bars": 0, "jev_on_time": 0, "jev_late": 0, "jev_errors": 0, "latencies_ms": [],
                       "bar_starts": []}
@@ -116,6 +119,8 @@ class Conductor:
                 continue
             if self.recorder:
                 self.recorder.write_audio(mono, block)
+            if self.on_level and (level := self._level.feed(block)):
+                self.on_level(level)
             self.analyzer.feed(block)
             self._an_anchor = (mono - self.input_latency_s, self.analyzer.now)
 

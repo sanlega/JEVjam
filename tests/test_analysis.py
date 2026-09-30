@@ -116,3 +116,18 @@ def test_key_ignores_unclear_bars():
     for c in ["C", "N", "F", "G", "N", "C", "F", "G"]:
         result = kt.update(c)
     assert theory.key_name(*result[:2]) == "C major"
+
+
+def test_level_meter_reports_rms_and_peak_every_interval():
+    import numpy as np
+
+    from jevjam.analysis import LevelMeter
+
+    m = LevelMeter(sr=48000, interval=0.05)  # un valor cada 2400 muestras
+    sine = (0.5 * np.sin(2 * np.pi * 440 * np.arange(2400) / 48000)).astype(np.float32)
+    assert m.feed(sine[:1200]) is None
+    level = m.feed(sine[1200:])
+    assert level["peak_db"] == pytest.approx(-6.0, abs=0.1)  # 0,5 de pico
+    assert level["rms_db"] == pytest.approx(-9.0, abs=0.2)   # seno: pico - 3 dB
+    silent = m.feed(np.zeros(2400, dtype=np.float32))
+    assert silent["rms_db"] < -100

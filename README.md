@@ -26,7 +26,7 @@ echo 'TYPESAFE_API_KEY=...' > .env          # clave de console.typesafe.ai (.env
 .venv/bin/python -m jevjam.app      # abre http://127.0.0.1:8765 en el navegador
 ```
 
-Todas las opciones (entrada, dispositivo y canal, tempo, tonalidad, salida, compases,
+Todas las opciones (entrada, dispositivo y canal con **vúmetro** para comprobar el micro antes de empezar, tempo, tonalidad, salida, compases,
 grabación), un botón rojo para empezar y parar, la jam en directo (qué oye, qué toca la
 banda, tonalidad, energía y papel de cada músico) y las sesiones grabadas con su revisión
 o para repetirlas. Solo escucha en tu máquina (127.0.0.1).
