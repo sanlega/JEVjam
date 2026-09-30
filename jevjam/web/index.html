@@ -259,8 +259,7 @@ const PARTS = {
 const MODES = {
   predicted: "Conoce tu progresión: anticipa el próximo acorde.",
   anticipated: "Reconoce una progresión habitual y la anticipa (aún no la has repetido entera).",
-  following: "Sigue el último acorde que oyó (va un compás detrás hasta aprender la progresión).",
-  tonic: "No oye acordes claros: sostiene la tónica.",
+  reactive: "No puede anticipar tus acordes: escucha tu primer pulso y bajo y teclado entran en el segundo.",
   waiting: "Aprendiendo tu progresión: bajo y teclado esperan.",
 };
 const NOTES = ["C","C#","D","Eb","E","F","F#","G","Ab","A","Bb","B"];
@@ -421,6 +420,7 @@ function resetLive() {
   [...$("meter").children].forEach(i => i.classList.remove("on"));
 }
 function onBar(b) {
+  if (b.update) { $("playing").textContent = b.playing; return; }  // modo reactivo: acorde decidido en el pulso 1
   $("heard").textContent = b.heard;
   $("playing").textContent = b.playing;
   $("key").textContent = keyEs(b.key) + (b.key_fixed ? " (fija)" : "");

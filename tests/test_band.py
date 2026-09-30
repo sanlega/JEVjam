@@ -115,7 +115,7 @@ def _conductor(fixed_key=None, bar_chords=()):
     from jevjam.conductor import Beat, Conductor
 
     c = Conductor.__new__(Conductor)
-    c.bpb, c._last_harmony, c._ever_known = 4, None, False
+    c.bpb, c._last_harmony = 4, None
     c.anticipation_threshold, c.progression_name = 0.6, None
     c.analyzer = Analyzer(fixed_key=fixed_key)
     from jevjam.keyfinder import KeyTracker
@@ -130,33 +130,58 @@ def _conductor(fixed_key=None, bar_chords=()):
     return c
 
 
-def test_harmony_waits_then_falls_back_to_tonic_with_fixed_key():
-    c = _conductor(fixed_key=(0, "major"))
-    assert c._harmony(bar=1)[1] == "waiting"
-    h, mode = c._harmony(bar=4)
-    assert mode == "tonic" and (h.root, h.quality) == (0, "maj")
-
-
-def test_harmony_follows_last_heard_chord_after_patience():
-    c = _conductor(bar_chords=["C", "F"])
-    assert c._harmony(bar=2)[1] == "waiting"
-    h, mode = c._harmony(bar=4)
-    assert mode == "following" and theory.chord_name(h.root, h.quality) == "F"
-
-
 def test_harmony_prefers_prediction():
     h, mode = _conductor(bar_chords=["C", "F", "G", "Am"] * 2)._harmony(bar=8)
     assert mode == "predicted" and theory.chord_name(h.root, h.quality) == "C"
 
 
-def test_harmony_does_not_drop_out_after_an_unclear_bar():
+class _FakeScheduler:
+    def __init__(self):
+        self.notes = []
+
+    def note(self, t, dur, ch, note, vel):
+        self.notes.append((t, dur, ch, note, vel))
+
+
+def _reactive_conductor(beat1_label, fixed_key=None):
     import numpy as np
 
     from jevjam.analysis import Window
     from jevjam.conductor import Beat
+    from jevjam.phrasing import Plan
 
-    c = _conductor(bar_chords=["C", "F", "G", "Am"] * 2)
-    assert c._harmony(bar=8)[1] == "predicted"
-    c.beats = [Beat("N", Window(np.zeros(12), -60.0, 0, 0.6))] * 4  # compases sin acorde claro
-    h, mode = c._harmony(bar=9)
-    assert mode == "following" and theory.chord_name(h.root, h.quality) == "C"  # mantiene el último
+    c = _conductor(fixed_key=fixed_key)
+    c.band, c.scheduler, c.on_bar = Band(), _FakeScheduler(), None
+    c.beats = [Beat(beat1_label, Window(np.zeros(12), -20.0, 1, 0.6))]
+    plan = Plan(bar=5, parts={}, energy=3.0, phrase_pos=1, phrase_bars=4, changed=False, reason="", fill=False)
+
+    class D:
+        leave_space = 0.0
+
+    return c, plan, D()
+
+
+def test_harmony_is_reactive_when_it_cannot_be_anticipated():
+    assert _conductor(bar_chords=["C", "F"])._harmony(bar=4)[1] == "reactive"
+
+
+def test_reactive_plays_the_beat_one_chord_from_beat_two():
+    c, plan, d = _reactive_conductor("G")
+    h, events = c._react(5, 10.0, 0.6, {"bass": "roots_whole", "keys": "pads"}, plan, d, None, (67, 84), H)
+    assert theory.chord_name(h.root, h.quality) == "G"
+    assert events and all(e.beat >= 1.0 for e in events)
+    assert {e.note % 12 for e in events if e.channel == BASS_CH} == {7}  # fundamental de G
+    assert all(t >= 10.0 + 0.6 - 1e-9 for t, *_ in c.scheduler.notes)  # nada antes del pulso 2
+
+
+def test_reactive_stays_silent_without_a_clear_chord():
+    c, plan, d = _reactive_conductor("N")
+    assert c._react(5, 10.0, 0.6, {"bass": "roots_whole", "keys": "pads"}, plan, d, None, (67, 84), H) is None
+    assert c.scheduler.notes == []
+
+
+def test_reactive_uses_the_tonic_with_a_fixed_key():
+    c, plan, d = _reactive_conductor("N", fixed_key=(0, "major"))
+    h, _ = c._react(5, 10.0, 0.6, {"bass": "roots_whole", "keys": "pads"}, plan, d, None, (67, 84), H)
+    assert theory.chord_name(h.root, h.quality) == "C"
+

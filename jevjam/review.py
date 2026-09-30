@@ -242,7 +242,8 @@ def main(argv=None) -> int:
     ans_total = ans_in_gap = 0
     for b in bars:
         gaps = b["human"].get("gaps") or []
-        if b["band"]["parts_played"].get("keys") == "answer_phrase" and gaps:
+        # Solo cuenta cuando el teclado respondió de verdad (si no había huecos, se queda atrás).
+        if b["band"]["parts_played"].get("keys") == "answer_phrase" and gaps and b["band"].get("answer_beats"):
             for beat in b["band"].get("keys_beats", []):
                 ans_total += 1
                 ans_in_gap += bool(beat < len(gaps) and gaps[beat])
@@ -254,6 +255,14 @@ def main(argv=None) -> int:
         print(f"· Sincronía con el humano: su ataque cae a {np.median(asyncs):+.0f} ms del pulso de la banda "
               f"(dispersión {np.std(asyncs):.0f} ms; entre músicos humanos es típico ±20-30 ms) en "
               f"{len(asyncs)} pulsos medidos")
+        lat = [(b.get("sync") or {}).get("latency_ms") for b in bars[-10:]]
+        lat = [v for v in lat if v is not None]
+        if lat:
+            print(f"  latencia constante estimada (no se corrige): {np.mean(lat):+.0f} ms")
+        starts = [b["bar_start_s"] for b in bars]
+        if len(starts) > 8:
+            bar_s = float(np.median(np.diff(starts)))
+            print(f"  tempo real de la banda: {4 * 60 / bar_s:.1f} BPM")
     lat = [b["jev"]["decision"]["latency_ms"] for b in bars if not b["jev"]["decision"]["reused"]]
     reused = sum(b["jev"]["decision"]["reused"] for b in bars)
     if lat:

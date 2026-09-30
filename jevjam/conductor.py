@@ -28,7 +28,7 @@ import numpy as np
 
 from . import theory
 from .analysis import Analyzer, LevelMeter, Snapshot, Window
-from .band import Band, Harmony
+from .band import Band, Harmony, NoteEvent
 from .brain import AGENT_OPTIONS, Decision, DecisionWorker
 from .context import BandMemory, build_state
 from .dialogue import GapProfile, answer_register
@@ -114,7 +114,6 @@ class Conductor:
         self.gaps = GapProfile(beats_per_bar)  # huecos y registro del humano (pregunta y respuesta)
         self._last_gaps: list[bool] = []
         self._harmonic_ok = False  # bajo y teclado pueden tocar (se decide al empezar cada grupo de 4)
-        self._ever_known = False  # ya hemos tocado con armonía conocida alguna vez
         self.anticipation_threshold = 0.6  # confianza mínima para tocar un acorde reconocido por progresión
         self.progression_name: str | None = None
         threading.Thread(target=self._analysis_loop, daemon=True, name="analysis").start()
@@ -230,7 +229,13 @@ class Conductor:
                 parts.update({a: "tacet" for a in HARMONIC_AGENTS if a in parts})
             answer_beats = self.gaps.answer_beats() if len(self.gaps.bars) >= 2 else None
             register_range = answer_register(self.gaps.register())
-            events = self.band.render_bar(bar, parts, plan.energy, harmony, None, self.bpb,
+            self._answer_beats = answer_beats
+            render_now = dict(parts)
+            reactive = None
+            if mode == "reactive":
+                # Bajo y teclado se deciden tras oír el pulso 1; ahora solo la batería.
+                reactive = {a: render_now.pop(a) for a in HARMONIC_AGENTS if a in render_now}
+            events = self.band.render_bar(bar, render_now, plan.energy, harmony, None, self.bpb,
                                           decision.leave_space > 0.6, answer_beats, register_range) if parts else []
             for e in events:
                 self.scheduler.note(bar_start + e.beat * beat, e.dur * beat, e.channel, e.note, e.velocity)
@@ -252,6 +257,12 @@ class Conductor:
                 end = bar_start + (i + 1) * beat
                 self._sleep_until(end - 0.03 if i < self.bpb - 1 else end - 0.16)
                 self.beats.append(self._take_beat())
+                if i == 0 and reactive:
+                    reacted = self._react(bar, bar_start, beat, reactive, plan, decision, answer_beats,
+                                          register_range, harmony)
+                    if reacted:
+                        harmony, extra = reacted
+                        events += extra
                 if i + 1 == ask_after:
                     # Lo que ya ha sonado de este compás también cuenta: si no, reaccionaríamos
                     # a un cambio del humano dos compases tarde en vez de uno.
@@ -287,6 +298,31 @@ class Conductor:
                 self._say(f"↷ alineo el pulso 1 con los cambios de acorde (+{shift} pulsos)")
             self.stats["bar_starts"].append(bar_start)
             bar += 1
+
+    def _react(self, bar, bar_start, beat, parts, plan, decision, answer_beats, register_range, provisional):
+        """Modo reactivo: con el acorde del pulso 1, bajo y teclado tocan desde el pulso 2."""
+        label = self.beats[-1].label
+        if label != "N":
+            root, quality = _CHORDS[label]
+        elif self.analyzer.fixed_key:
+            root, quality = self.analyzer.fixed_key[0], "maj" if self.analyzer.fixed_key[1] == "major" else "min"
+        else:
+            return None  # no sabemos qué suena: mejor callar este compás que tocar un acorde a ciegas
+        h = Harmony(root, quality, provisional.key_tonic, provisional.key_mode)
+        self._last_harmony = h
+        events = self.band.render_bar(bar, parts, plan.energy, h, None, self.bpb, decision.leave_space > 0.6,
+                                      answer_beats, register_range)
+        out = []
+        for e in events:
+            if e.beat >= 1.0:
+                out.append(e)
+            elif e.beat + e.dur > 1.05:  # notas largas (colchón, notas largas): entran en el pulso 2
+                out.append(NoteEvent(1.0, e.beat + e.dur - 1.0, e.channel, e.note, e.velocity))
+        for e in out:
+            self.scheduler.note(bar_start + e.beat * beat, e.dur * beat, e.channel, e.note, e.velocity)
+        if self.on_bar:
+            self.on_bar({"bar": bar, "update": True, "playing": label if label != "N" else theory.chord_name(root, quality)})
+        return h, out
 
     def _ask_after_beats(self, beat: float, worst_latency_s: float = 0.9) -> int:
         """Pedir a Jev lo más tarde posible (más reciente = reacciona antes) sin arriesgar el plazo."""
@@ -327,14 +363,17 @@ class Conductor:
     # Modos armónicos, de más a menos fiable:
     #   predicted  la progresión se repite y anticipamos el acorde del próximo compás
     #   anticipated  aún no se ha repetido, pero encaja con una progresión habitual (theory)
-    #   following  seguimos el último acorde oído (va un compás tarde si el humano cambia)
-    #   tonic      no oímos acordes claros pero la tonalidad es fija: sostenemos la tónica
-    #   waiting    aún no sabemos nada: bajo y teclado esperan
+    #   reactive   no se puede anticipar: bajo y teclado escuchan el pulso 1 del humano y
+    #              entran en el pulso 2 con ese acorde (como un músico que no conoce los
+    #              cambios); si el pulso 1 no trae un acorde claro, ese compás no tocan
+    #              (con tonalidad fija, tónica). Sustituye a "seguir el último acorde", que
+    #              iba siempre un compás tarde (jam real 17:22: 0 aciertos con acordes que
+    #              no se repiten) y mantenía acordes a ciegas cuando el humano tocaba otra cosa.
     HARMONY_LABELS = {"predicted": "", "anticipated": " · reconozco la progresión",
-                      "following": " · sigo el último acorde oído",
-                      "tonic": " · sin acordes claros: sostengo la tónica", "waiting": " · aprendiendo la progresión"}
+                      "reactive": " · escucho tu acorde y entro en el pulso 2",
+                      "waiting": " · aprendiendo la progresión"}
 
-    def _harmony(self, bar: int, patience_bars: int = 4) -> tuple[Harmony, str]:
+    def _harmony(self, bar: int) -> tuple[Harmony, str]:
         """Armonía del próximo compás y cómo se ha decidido (ver HARMONY_LABELS)."""
         snap = self.analyzer.snapshot()
         key = self._key(snap)
@@ -351,21 +390,13 @@ class Conductor:
             mode, (root, quality) = "predicted", _CHORDS[predicted]
         elif anticipated:
             mode, (root, quality) = "anticipated", _CHORDS[anticipated[0]]
-        elif bar >= patience_bars and bars and bars[-1] != "N":
-            mode, (root, quality) = "following", _CHORDS[bars[-1]]
-        elif bar >= patience_bars and self.analyzer.fixed_key:
-            tonic, key_mode = self.analyzer.fixed_key
-            mode, root, quality = "tonic", tonic, "maj" if key_mode == "major" else "min"
-        elif self._ever_known and self._last_harmony:
-            # Un compás sin acorde claro no saca a bajo y teclado de la frase: mantienen el último.
-            mode, root, quality = "following", self._last_harmony.root, self._last_harmony.quality
-        elif self._last_harmony:
-            mode, root, quality = "waiting", self._last_harmony.root, self._last_harmony.quality
         else:
-            mode, root, quality = "waiting", key[0], "maj" if key[1] == "major" else "min"
+            # No podemos anticiparla: bajo y teclado escucharán el pulso 1 del humano y entrarán
+            # en el pulso 2 con ese acorde (ver run). Aquí solo queda un marcador provisional.
+            last = self._last_harmony
+            mode, root, quality = "reactive", (last.root if last else key[0]), (last.quality if last else "maj")
         h = Harmony(root, quality, key[0], key[1])
         self._last_harmony = h
-        self._ever_known = self._ever_known or mode != "waiting"
         return h, mode
 
     def _follow(self, bpm: float, bar_start: float, beat: float) -> tuple[float, float]:
@@ -478,10 +509,12 @@ class Conductor:
                            "reason": plan.reason, "fill": plan.fill},
                 "notes": dict(Counter({9: "drums", 0: "bass", 1: "keys"}.get(e.channel, e.channel) for e in events)),
                 "keys_beats": sorted({int(e.beat) for e in events if e.channel == 1}),
+                "answer_beats": getattr(self, "_answer_beats", None),
             },
             "sync": {"asyncs_ms": [round(a * 1000, 1) for a in self.last_sync.asyncs_s],
                      "mean_ms": round(self.last_sync.mean_s * 1000, 1),
                      "phase_shift_ms": round(self.last_sync.phase_shift_s * 1000, 1),
+                     "latency_ms": round(self.last_sync.bias_s * 1000, 1),
                      "bpm_next": round(60 / self.last_sync.period_s, 2)},
             "jev": {"state_sent": state, "sent_at_s": rec.rel(sent_at) if sent_at else None,
                     "decision": asdict(decision)},

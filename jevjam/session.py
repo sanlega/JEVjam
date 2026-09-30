@@ -142,6 +142,14 @@ class Session:
                 recorder.meta.update({"model": brain.model, "input_latency_s": conductor.input_latency_s})
             if not self._stop.is_set():
                 source.start()
+                if hasattr(source, "finished"):  # demo o archivo: parar cuando se acaba el audio
+                    def stop_at_end():
+                        while not self._stop.is_set() and not source.finished:
+                            time.sleep(0.2)
+                        time.sleep(2 * 4 * 60 / (cfg.bpm or 100))  # deja cerrar un par de compases
+                        conductor.stop()
+
+                    threading.Thread(target=stop_at_end, daemon=True).start()
                 emit("status", {"state": "listening", "text": "escuchando: toca algo…"})
                 conductor.run(max_bars=cfg.bars)
         except KeyboardInterrupt:

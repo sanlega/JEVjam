@@ -3,6 +3,7 @@
 _Última actualización: 2026-09-30 por claude_
 
 ## En curso
+- Jam 17:22: modo reactivo (sustituye a following/tonic), latencia en sync.py, parada al final del archivo, synth rehecho (FM EP, estéreo, reverb, niveles medidos). Muestras en recordings/escucha/. 97 tests.
 - Implementados métodos 1-3 de docs/MUSICAL-METHODS.md: anticipación por progresiones habituales (Jev medido 3/10 → no se usa ahí), sincronía fase/periodo (sync.py), pregunta-respuesta por huecos (dialogue.py). Plan de acordes y sincronía en la app. 94 tests.
 - Croma de magnitud (no energía): el E de guitarra con Mi grave fuerte no se reconocía (0/5 → 5/5); jam F-E-Am-G 22/22, tonalidad estable. Contador de bloques de audio perdidos con aviso. 72 tests.
 - Fraseo (phrasing.py): papeles por frases de 2/4/8/16 compases (app/--phrase), todos a la vez, votos de Jev acumulados con histéresis 0,2, excepción por cambio de sección claro (≥0,85), redoble como adorno, energía ±0,5/compás. Jam real: 3 cambios en 28 compases (antes ~18). 71 tests.

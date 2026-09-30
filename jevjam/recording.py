@@ -157,17 +157,18 @@ def write_wav(path: Path, audio: np.ndarray, sr: int, channels: int = 1) -> None
 
 
 def render_mix_wav(session_dir: Path) -> Path:
-    """Estéreo: humano algo a la izquierda y banda algo a la derecha, para distinguirlos al oído."""
+    """Estéreo: la banda (con su propia imagen estéreo) y el humano algo a la izquierda."""
     from .synth import SynthEngine
 
     audio, sr = read_wav(session_dir / "input.wav")
     band = SynthEngine(sr).render(read_midi(session_dir / "band.mid"), len(audio) / sr + 1.0)
     n = max(len(audio), len(band))
-    left = np.pad(audio, (0, n - len(audio)))
-    right = np.pad(band, (0, n - len(band)))
-    peak = max(1e-6, np.abs(left).max())
-    left = left * min(1.0, 0.8 / peak)  # la entrada suele venir baja: la normalizamos
-    stereo = np.stack([left + 0.4 * right, 0.4 * left + right], axis=1).reshape(-1) * 0.8
+    human = np.pad(audio, (0, n - len(audio)))
+    band = np.pad(band, ((0, n - len(band)), (0, 0)))
+    peak = max(1e-6, np.abs(human).max())
+    human = human * min(1.0, 0.7 / peak)  # la entrada suele venir baja: la normalizamos
+    stereo = band + np.stack([0.8 * human, 0.45 * human], axis=1)
+    stereo = stereo / max(1.0, float(np.abs(stereo).max()) / 0.95)
     path = session_dir / "mix.wav"
-    write_wav(path, stereo, sr, channels=2)
+    write_wav(path, stereo.reshape(-1), sr, channels=2)
     return path

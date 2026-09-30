@@ -264,6 +264,20 @@ magnitud: E 5/5, 22/22 acordes, La menor estable y 14/14 acordes de la banda en 
 predicho. Además se cuentan los bloques de audio perdidos (overflow del dispositivo o
 análisis saturado) y se avisa al terminar.
 
+### Jam larga del 2026-09-30 17:22 (75 compases, 3 min)
+
+| Tramo | Problema | Cambio | Antes → después (misma entrada) |
+|---|---|---|---|
+| acordes que no se repiten | "seguir el último acorde" iba siempre un compás tarde | **modo reactivo**: bajo y teclado oyen el pulso 1 y entran en el 2 con ese acorde; sin acorde claro, callan (tónica con `--key`) | 1/17 → 10/17 |
+| tocar suave sin acordes claros | la banda mantenía F 5 compases a ciegas | lo mismo: sin acorde claro no se inventa | — |
+| sincronía | +55 ms constantes (micro inalámbrico + altavoces) corregidos como error: la banda se retrasaba cada compás y el tempo caía a 99,1 | `sync.py` estima la **latencia** (desfase estable, tempo estable y sin pendiente dentro del compás) y solo corrige las desviaciones | tempo estable; latencia estimada ~60 ms |
+| repetir un archivo | la banda seguía tocando tras acabar el audio | la sesión para al terminar la fuente | — |
+
+Synth integrado rehecho (`synth.py`): piano eléctrico FM, bajo por armónicos, batería con
+paso-banda por diferencia de medias móviles, estéreo, reverb de Schroeder vectorizada y
+limitador suave; niveles equilibrados midiendo cada instrumento (bombo −20,7, bajo −22,5,
+teclado −23,7, caja −24,0, charles −31,9 dB); 1,7 ms por bloque de 256 muestras.
+
 ### Fraseo (`phrasing.py`)
 
 En las jams reales la banda cambiaba de papel cada 1,2–2 compases: Jev decide compás a
