@@ -11,7 +11,7 @@ micrófono → análisis (tempo, acordes, dinámica…) → contexto en palabras
 Jev no genera notas: juzga (¿más energía?, ¿un fill?, ¿dejo espacio?, ¿qué patrón toco?).
 Las notas las genera código determinista, y la latencia de Jev nunca toca el audio porque
 decide siempre el compás **siguiente**. Detalles y mediciones en
-[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md). Hoja de ruta musical: [docs/MUSICAL-METHODS.md](docs/MUSICAL-METHODS.md).
 
 ## Puesta en marcha
 

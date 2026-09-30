@@ -19,6 +19,7 @@ _Última actualización: 2026-09-30 por claude_
   12/12 acordes correctos tras aprender la progresión.
 
 ## Próximos pasos
+1. Elegir con el usuario qué método de docs/MUSICAL-METHODS.md implementar (recomendado: anticipar acordes con armonía funcional + Jev; luego corrección de fase/periodo y pregunta-respuesta por huecos).
 1. Que el usuario grabe jams reales con la versión nueva y revisarlas con `jevjam.review` (sobre todo tonalidad sin --key: salió F#/C# mayor en varias sesiones; sin audio no se pudo verificar).
 2. Aprender la progresión antes (hoy 2 vueltas ≈ 8 compases) y seguir cambios de acorde a nivel de pulso.
 3. Pulso 1 sin depender de la armonía (acentos/graves o tracker de downbeat).
