@@ -1,0 +1,744 @@
+#!/usr/bin/env bash
+# shellcheck disable=SC2015,SC2016
+# metaharness (mh) — contexto compartido entre Claude y otras IAs.
+# Una sola fuente de verdad en .ai/, adaptadores generados para cada herramienta
+# y memoria de sesiones versionada con git. Sin dependencias: bash + git.
+set -eu
+
+MH_VERSION="0.4.0"
+MARKER="GENERADO por metaharness (mh sync). No editar: edita .ai/ y ejecuta .ai/bin/mh sync"
+
+die()  { printf 'mh: %s\n' "$*" >&2; exit 1; }
+info() { printf '%s\n' "$*" >&2; }
+
+# Directorio del framework (donde está template/), si este mh es la copia fuente.
+script_path() {
+  local p="$0"
+  while [ -L "$p" ]; do
+    local t; t="$(readlink "$p")"
+    case "$t" in /*) p="$t" ;; *) p="$(dirname "$p")/$t" ;; esac
+  done
+  cd "$(dirname "$p")" && pwd
+}
+MH_BIN_DIR="$(script_path)"
+MH_HOME="${MH_HOME:-$(cd "$MH_BIN_DIR/.." && pwd)}"
+
+# Raíz del proyecto: primer ancestro con .ai/protocol.md.
+find_root() {
+  local d; d="$(pwd)"
+  while [ "$d" != "/" ]; do
+    [ -f "$d/.ai/protocol.md" ] && { printf '%s\n' "$d"; return 0; }
+    d="$(dirname "$d")"
+  done
+  return 1
+}
+require_root() { ROOT="$(find_root)" || die "no estás dentro de un proyecto metaharness (ejecuta 'mh init')"; }
+
+load_config() {
+  ADAPTERS="agents claude"
+  SKILL_DIRS=".claude/skills .agents/skills"
+  BRIEF_SESSIONS=3
+  # shellcheck disable=SC1090,SC1091
+  [ -f "$1/.ai/config" ] && . "$1/.ai/config"
+  return 0
+}
+
+slugify() {
+  printf '%s' "$1" \
+    | sed 's/á/a/g;s/à/a/g;s/ä/a/g;s/â/a/g;s/Á/a/g;s/À/a/g;s/Ä/a/g;s/Â/a/g;s/é/e/g;s/è/e/g;s/ë/e/g;s/ê/e/g;s/É/e/g;s/È/e/g;s/Ë/e/g;s/Ê/e/g;s/í/i/g;s/ì/i/g;s/ï/i/g;s/î/i/g;s/Í/i/g;s/Ì/i/g;s/Ï/i/g;s/Î/i/g;s/ó/o/g;s/ò/o/g;s/ö/o/g;s/ô/o/g;s/Ó/o/g;s/Ò/o/g;s/Ö/o/g;s/Ô/o/g;s/ú/u/g;s/ù/u/g;s/ü/u/g;s/û/u/g;s/Ú/u/g;s/Ù/u/g;s/Ü/u/g;s/Û/u/g;s/ñ/n/g;s/Ñ/n/g;s/ç/c/g;s/Ç/c/g' \
+    | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9' '-' \
+    | sed -e 's/--*/-/g' -e 's/^-//' -e 's/-$//' | cut -c1-50
+}
+
+has_marker() { [ -f "$1" ] && grep -q "GENERADO por metaharness" "$1"; }
+
+# Escribe $2 (contenido en archivo temporal) en $1 salvo que exista un archivo
+# no generado por metaharness (protección de archivos del usuario).
+put_generated() {
+  local target="$1" src="$2"
+  if [ -e "$target" ] && ! has_marker "$target"; then
+    info "  ! $target existe y no lo generó metaharness: no se toca (muévelo a .ai/context/ y vuelve a ejecutar sync)"
+    return 0
+  fi
+  mkdir -p "$(dirname "$target")"
+  cp "$src" "$target"
+}
+
+# Cuerpo común: protocolo + .ai/context/*.md (+ .ai/tools/<adapter>.md).
+body() {
+  local root="$1" tool="${2:-}" f
+  cat "$root/.ai/protocol.md"
+  for f in "$root"/.ai/context/*.md; do
+    [ -f "$f" ] || continue
+    printf '\n'
+    cat "$f"
+  done
+  skills_index "$root"
+  if [ -n "$tool" ] && [ -f "$root/.ai/tools/$tool.md" ]; then
+    printf '\n'
+    cat "$root/.ai/tools/$tool.md"
+  fi
+}
+
+frontmatter_field() { # archivo campo
+  awk -v k="$2" 'NR==1 && $0!="---" {exit} NR>1 && $0=="---" {exit}
+    NR>1 { i=index($0,":"); if (i && substr($0,1,i-1)==k) { v=substr($0,i+1); sub(/^[ \t]+/,"",v); print v; exit } }' "$1"
+}
+strip_frontmatter() {
+  awk 'NR==1 && $0=="---" {fm=1; next} fm && $0=="---" {fm=0; next} !fm' "$1"
+}
+
+# ---------------------------------------------------------------- skills
+# Una skill es .ai/skills/<nombre>/SKILL.md (formato Agent Skills: frontmatter
+# con name y description) más archivos de apoyo opcionales.
+skill_list() { # raíz -> rutas de SKILL.md, ordenadas
+  find "$1/.ai/skills" -mindepth 2 -maxdepth 2 -name SKILL.md -type f 2>/dev/null | sort
+}
+
+skills_index() {
+  local root="$1" f name
+  [ -n "$(skill_list "$root")" ] || return 0
+  printf '\n# Skills disponibles\n\n'
+  printf 'Procedimientos expertos en `.ai/skills/`. Si la tarea encaja con una descripción,\n'
+  printf 'lee el `SKILL.md` completo antes de empezar y síguelo (Claude Code y otros\n'
+  printf 'clientes compatibles con Agent Skills las cargan solos).\n\n'
+  skill_list "$root" | while IFS= read -r f; do
+    name="$(basename "$(dirname "$f")")"
+    printf -- '- **%s** (`.ai/skills/%s/SKILL.md`): %s\n' "$name" "$name" "$(frontmatter_field "$f" description)"
+  done
+}
+
+# Copia la skill SRC a DEST marcando su SKILL.md como generado.
+gen_skill() {
+  local src="$1" dest="$2" rel
+  if [ -f "$dest/SKILL.md" ] && ! has_marker "$dest/SKILL.md"; then
+    info "  ! $dest existe y no lo generó metaharness: no se toca"
+    return 0
+  fi
+  rm -rf "$dest"
+  mkdir -p "$dest"
+  (cd "$src" && find . -type f) | while IFS= read -r rel; do
+    rel="${rel#./}"
+    mkdir -p "$dest/$(dirname "$rel")"
+    if [ "$rel" = "SKILL.md" ]; then
+      {
+        awk 'NR==1 && $0=="---" {fm=1; print; next} fm && $0=="---" {print; exit} fm {print}' "$src/SKILL.md"
+        printf '<!-- %s -->\n' "$MARKER"
+        strip_frontmatter "$src/SKILL.md"
+      } >"$dest/SKILL.md"
+    else
+      cp "$src/$rel" "$dest/$rel"
+    fi
+  done
+}
+
+# Valida las skills; informa de cada problema y devuelve 1 si hay alguno.
+lint_skills() {
+  local root="$1" rc=0 f dir name desc
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    dir="$(basename "$(dirname "$f")")"
+    if [ "$(head -n 1 "$f")" != "---" ]; then info "skill $dir: falta el frontmatter YAML"; rc=1; continue; fi
+    name="$(frontmatter_field "$f" name)"
+    desc="$(frontmatter_field "$f" description)"
+    [ "$name" = "$dir" ] || { info "skill $dir: 'name' ($name) debe coincidir con la carpeta"; rc=1; }
+    printf '%s' "$name" | grep -Eq '^[a-z0-9]+(-[a-z0-9]+)*$' || { info "skill $dir: 'name' solo admite a-z, 0-9 y guiones"; rc=1; }
+    [ "${#name}" -le 64 ] || { info "skill $dir: 'name' supera 64 caracteres"; rc=1; }
+    [ -n "$desc" ] || { info "skill $dir: falta 'description'"; rc=1; }
+    [ "${#desc}" -le 1024 ] || { info "skill $dir: 'description' supera 1024 caracteres"; rc=1; }
+    case "$desc" in
+      \"*|\'*) ;;
+      *": "*|*" #"*) info "skill $dir: 'description' con ': ' o ' #' debe ir entre comillas (YAML)"; rc=1 ;;
+    esac
+    [ -n "$(strip_frontmatter "$f" | tr -d '[:space:]')" ] || { info "skill $dir: SKILL.md sin contenido"; rc=1; }
+  done <<EOF
+$(skill_list "$root")
+EOF
+  return "$rc"
+}
+
+# ---------------------------------------------------------------- sync
+# gen_adapters RAIZ SALIDA: genera todos los adaptadores de RAIZ dentro de SALIDA.
+gen_adapters() {
+  local root="$1" out="$2" tmp a p name desc
+  tmp="$(mktemp -d)"
+  load_config "$root"
+  for a in $ADAPTERS; do
+    case "$a" in
+      agents)
+        { printf '<!-- %s -->\n\n' "$MARKER"; body "$root" agents; } >"$tmp/f"
+        put_generated "$out/AGENTS.md" "$tmp/f" ;;
+      claude)
+        {
+          printf '<!-- %s -->\n\n' "$MARKER"
+          printf '@AGENTS.md\n\n# Estado actual (memoria compartida)\n\n@.ai/memory/STATE.md\n'
+          [ -f "$root/.ai/tools/claude.md" ] && printf '\n@.ai/tools/claude.md\n'
+          true
+        } >"$tmp/f"
+        put_generated "$out/CLAUDE.md" "$tmp/f"
+        mkdir -p "$out/.claude/commands"
+        for p in "$root"/.ai/prompts/*.md; do
+          [ -f "$p" ] || continue
+          name="$(basename "$p")"
+          desc="$(frontmatter_field "$p" description)"
+          {
+            printf -- '---\ndescription: %s\n---\n<!-- %s -->\n' "$desc" "$MARKER"
+            strip_frontmatter "$p"
+          } >"$tmp/f"
+          put_generated "$out/.claude/commands/$name" "$tmp/f"
+        done ;;
+      gemini)
+        { printf '<!-- %s -->\n\n' "$MARKER"; body "$root" gemini; } >"$tmp/f"
+        put_generated "$out/GEMINI.md" "$tmp/f"
+        mkdir -p "$out/.gemini/commands"
+        for p in "$root"/.ai/prompts/*.md; do
+          [ -f "$p" ] || continue
+          name="$(basename "$p" .md)"
+          desc="$(frontmatter_field "$p" description | sed "s/'/’/g")"
+          {
+            printf '# %s\n' "$MARKER"
+            printf "description = '%s'\n" "$desc"
+            printf "prompt = '''\n"
+            strip_frontmatter "$p" | sed 's/\$ARGUMENTS/{{args}}/g'
+            printf "'''\n"
+          } >"$tmp/f"
+          put_generated "$out/.gemini/commands/$name.toml" "$tmp/f"
+        done ;;
+      copilot)
+        { printf '<!-- %s -->\n\n' "$MARKER"; body "$root" copilot; } >"$tmp/f"
+        put_generated "$out/.github/copilot-instructions.md" "$tmp/f" ;;
+      cursor)
+        {
+          printf -- '---\ndescription: Contexto compartido del proyecto (metaharness)\nalwaysApply: true\n---\n'
+          printf '<!-- %s -->\n\n' "$MARKER"
+          body "$root" cursor
+        } >"$tmp/f"
+        put_generated "$out/.cursor/rules/metaharness.mdc" "$tmp/f" ;;
+      aider)
+        printf '# %s\nread:\n  - AGENTS.md\n  - .ai/memory/STATE.md\n' "$MARKER" >"$tmp/f"
+        put_generated "$out/.aider.conf.yml" "$tmp/f" ;;
+      *) info "  ! adaptador desconocido: $a" ;;
+    esac
+  done
+  for a in $SKILL_DIRS; do
+    skill_list "$root" | while IFS= read -r p; do
+      gen_skill "$(dirname "$p")" "$out/$a/$(basename "$(dirname "$p")")"
+    done
+  done
+  rm -rf "$tmp"
+}
+
+# Artefactos generados cuya fuente ya no existe (comandos y skills).
+orphans() {
+  local root="$1" f base d
+  for f in "$root"/.claude/commands/*.md "$root"/.gemini/commands/*.toml; do
+    [ -f "$f" ] && has_marker "$f" || continue
+    base="$(basename "$f")"; base="${base%.*}"
+    [ -f "$root/.ai/prompts/$base.md" ] || printf '%s\n' "$f"
+  done
+  load_config "$root"
+  for d in $SKILL_DIRS; do
+    for f in "$root/$d"/*/SKILL.md; do
+      [ -f "$f" ] && has_marker "$f" || continue
+      base="$(basename "$(dirname "$f")")"
+      [ -f "$root/.ai/skills/$base/SKILL.md" ] || dirname "$f"
+    done
+  done
+}
+
+prune_orphans() {
+  local f
+  orphans "$1" | while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    rm -rf "$f"; info "  - eliminado ${f#"$1"/}"
+  done
+}
+
+cmd_sync() {
+  require_root
+  lint_skills "$ROOT" || info "mh: corrige las skills anteriores (mh skill lint)"
+  gen_adapters "$ROOT" "$ROOT"
+  prune_orphans "$ROOT"
+  load_config "$ROOT"
+  info "mh: adaptadores sincronizados ($ADAPTERS; skills: $(skill_list "$ROOT" | wc -l | tr -d ' '))"
+}
+
+cmd_check() {
+  require_root
+  local tmp rc=0 f rel
+  tmp="$(mktemp -d)"
+  gen_adapters "$ROOT" "$tmp" 2>/dev/null
+  while IFS= read -r f; do
+    rel="${f#"$tmp"/}"
+    if [ -e "$ROOT/$rel" ] && ! has_marker "$ROOT/$rel"; then continue; fi
+    if ! cmp -s "$f" "$ROOT/$rel"; then
+      info "desincronizado: $rel"; rc=1
+    fi
+  done <<EOF
+$(find "$tmp" -type f)
+EOF
+  rm -rf "$tmp"
+  while IFS= read -r f; do
+    [ -n "$f" ] || continue
+    info "huérfano: ${f#"$ROOT"/}"; rc=1
+  done <<EOF
+$(orphans "$ROOT")
+EOF
+  lint_skills "$ROOT" || rc=1
+  [ "$rc" -eq 0 ] && info "mh: adaptadores al día" || info "mh: ejecuta '.ai/bin/mh sync'"
+  return "$rc"
+}
+
+# ---------------------------------------------------------------- init
+cmd_init() {
+  local dir="." upgrade=0 f name
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --upgrade) upgrade=1 ;;
+      -h|--help) usage; return 0 ;;
+      *) dir="$1" ;;
+    esac
+    shift
+  done
+  [ -d "$MH_HOME/template/.ai" ] || die "no encuentro la plantilla en $MH_HOME/template (usa el mh del repositorio metaharness o define MH_HOME)"
+  mkdir -p "$dir"
+  dir="$(cd "$dir" && pwd)"
+
+  if [ -f "$dir/.ai/protocol.md" ] && [ "$upgrade" -eq 0 ]; then
+    die "$dir ya tiene metaharness (usa --upgrade para actualizar bin, protocolo y hooks)"
+  fi
+
+  # Copia la plantilla sin sobrescribir nada existente. En --upgrade esto añade
+  # lo nuevo del framework (skills, prompts...) sin tocar lo que ya adaptaste.
+  (cd "$MH_HOME/template" && find .ai -type f) | while IFS= read -r f; do
+    [ -e "$dir/$f" ] && continue
+    [ "$upgrade" -eq 1 ] && info "  + $f"
+    mkdir -p "$dir/$(dirname "$f")"
+    cp "$MH_HOME/template/$f" "$dir/$f"
+  done
+  if [ "$upgrade" -eq 0 ]; then
+    # Importa instrucciones previas escritas a mano para no perderlas.
+    for name in AGENTS.md CLAUDE.md GEMINI.md; do
+      if [ -f "$dir/$name" ] && ! has_marker "$dir/$name"; then
+        f="$dir/.ai/context/40-imported-$(slugify "${name%.md}").md"
+        mv "$dir/$name" "$f"
+        info "  > $name importado a ${f#"$dir"/} (revísalo y fusiónalo)"
+      fi
+    done
+  else
+    cp "$MH_HOME/template/.ai/protocol.md" "$dir/.ai/protocol.md"
+  fi
+
+  mkdir -p "$dir/.ai/bin"
+  cp "$MH_BIN_DIR/mh" "$dir/.ai/bin/mh"
+  for f in "$MH_BIN_DIR"/*.py; do [ -f "$f" ] && cp "$f" "$dir/.ai/bin/"; done
+  chmod +x "$dir/.ai/bin/"*
+
+  # Servidor MCP del proyecto (Claude Code lee .mcp.json; ver docs para otros clientes).
+  if [ ! -f "$dir/.mcp.json" ]; then
+    cp "$MH_HOME/template/.mcp.json" "$dir/.mcp.json"
+  elif ! grep -q 'metaharness' "$dir/.mcp.json"; then
+    info "  ! .mcp.json ya existe: añade el servidor 'metaharness' de $MH_HOME/template/.mcp.json"
+  fi
+
+  # Claude Code: hooks (brief al empezar, guardián, cierre con protocolo) y permisos
+  # según el nivel de autonomía. Si el archivo ya existe, se fusiona sin tocar lo ajeno.
+  if [ ! -f "$dir/.claude/settings.json" ]; then
+    mkdir -p "$dir/.claude"
+    cp "$MH_HOME/template/.claude/settings.json" "$dir/.claude/settings.json"
+  elif command -v python3 >/dev/null 2>&1; then
+    (cd "$dir" && PYTHONDONTWRITEBYTECODE=1 python3 "$dir/.ai/bin/autonomy.py" install >&2) \
+      || info "  ! no se pudo fusionar .claude/settings.json (revísalo: ¿JSON válido?)"
+  elif ! grep -q '.ai/bin/mh guard' "$dir/.claude/settings.json"; then
+    info "  ! .claude/settings.json ya existe: añade a mano los hooks de"
+    info "    $MH_HOME/template/.claude/settings.json"
+  fi
+
+  # .ai/local/ es para material privado o pesado: fuera de git.
+  if ! { [ -f "$dir/.gitignore" ] && grep -qx '.ai/local/' "$dir/.gitignore"; }; then
+    printf '\n# metaharness: material privado/pesado\n.ai/local/\n' >>"$dir/.gitignore"
+  fi
+  mkdir -p "$dir/.ai/local"
+
+  (cd "$dir" && "$dir/.ai/bin/mh" sync)
+  if [ "$upgrade" -eq 1 ]; then
+    info "mh: $dir actualizado a metaharness $MH_VERSION"
+  else
+    info "mh: metaharness instalado en $dir"
+    info "   1) Rellena .ai/context/*.md (o pide a tu IA: /context-update)"
+    info "   2) .ai/bin/mh sync   3) git add -A && git commit -m 'metaharness'"
+  fi
+}
+
+# ---------------------------------------------------------------- memoria
+recent_sessions() { # raíz n
+  find "$1/.ai/memory/sessions" -maxdepth 1 -name '*.md' -type f 2>/dev/null | sort -r | head -n "$2"
+}
+first_heading() { sed -n 's/^# //p' "$1" | head -n 1; }
+
+cmd_brief() {
+  require_root
+  local show_state=1 f
+  [ "${1:-}" = "--no-state" ] && show_state=0
+  load_config "$ROOT"
+  printf '# metaharness · contexto de inicio de sesión\n\n'
+  printf 'Proyecto con memoria compartida en .ai/ (lee .ai/protocol.md si no lo tienes cargado).\n'
+  printf 'Al terminar: actualiza .ai/memory/STATE.md y ejecuta .ai/bin/mh handoff.\n\n'
+  if [ "$show_state" -eq 1 ]; then
+    cat "$ROOT/.ai/memory/STATE.md"; printf '\n'
+  fi
+  f="$(skill_list "$ROOT" | while IFS= read -r f; do basename "$(dirname "$f")"; done | tr '\n' ' ' | sed 's/ $//')"
+  [ -n "$f" ] && printf 'Skills (.ai/skills/<nombre>/SKILL.md): %s\n\n' "$f"
+  if [ -f "$ROOT/.ai/memory/LESSONS.md" ] && grep -q '^- ' "$ROOT/.ai/memory/LESSONS.md"; then
+    printf '## Lecciones recientes (.ai/memory/LESSONS.md)\n'
+    grep '^- ' "$ROOT/.ai/memory/LESSONS.md" | tail -n 5
+    printf '\n'
+  fi
+  printf '## Sesiones recientes\n'
+  f="$(recent_sessions "$ROOT" "$BRIEF_SESSIONS")"
+  if [ -z "$f" ]; then printf -- '- (ninguna)\n'; else
+    printf '%s\n' "$f" | while IFS= read -r f; do
+      printf -- '- %s — %s\n' "${f#"$ROOT"/}" "$(first_heading "$f")"
+    done
+  fi
+  if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+    printf '\n## Git\n- rama: %s\n' "$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+    printf -- '- cambios sin commit: %s archivos\n' "$(git -C "$ROOT" status --porcelain 2>/dev/null | wc -l | tr -d ' ')"
+    git -C "$ROOT" log --oneline -5 2>/dev/null | sed 's/^/- /' || true
+  fi
+}
+
+cmd_handoff() {
+  require_root
+  local agent="${MH_AGENT:-unknown}" title="" file stamp
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -a|--agent) agent="$2"; shift ;;
+      -t|--title) title="$2"; shift ;;
+      *) title="$*"; break ;;
+    esac
+    shift
+  done
+  [ -n "$title" ] || title="sesion"
+  stamp="$(date +%Y-%m-%d-%H%M)"
+  file="$ROOT/.ai/memory/sessions/$stamp-$(slugify "$agent")-$(slugify "$title").md"
+  {
+    printf '# %s\n\n- **Fecha**: %s\n- **Agente**: %s\n' "$title" "$(date '+%Y-%m-%d %H:%M')" "$agent"
+    if git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+      printf -- '- **Rama**: %s @ %s\n' "$(git -C "$ROOT" rev-parse --abbrev-ref HEAD 2>/dev/null)" \
+        "$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo 'sin commits')"
+    fi
+    printf '\n'
+    if [ ! -t 0 ]; then
+      cat
+    else
+      printf '## Objetivo\n\n## Cambios\n\n## Decisiones\n\n## Pendiente\n\n'
+      printf '## Retro (señal para la automejora)\n- Funcionó:\n- Falló o costó:\n- Mejora propuesta al harness (skill/contexto/protocolo):\n'
+    fi
+  } >"$file"
+  if [ -t 0 ] && [ -n "${EDITOR:-}" ]; then "$EDITOR" "$file"; fi
+  printf '%s\n' "${file#"$ROOT"/}"
+}
+
+cmd_decision() {
+  require_root
+  [ $# -gt 0 ] || die "uso: mh decision \"título\""
+  local n
+  n=$(grep -c '^## D-' "$ROOT/.ai/memory/DECISIONS.md" || true)
+  n=$((n + 1))
+  {
+    printf '\n## D-%03d · %s\n\n- **Fecha**: %s\n' "$n" "$*" "$(date +%Y-%m-%d)"
+    if [ ! -t 0 ]; then printf '\n'; cat; else
+      printf -- '- **Contexto**:\n- **Decisión**:\n- **Alternativas descartadas**:\n- **Consecuencias**:\n'
+    fi
+  } >>"$ROOT/.ai/memory/DECISIONS.md"
+  printf 'D-%03d añadida a .ai/memory/DECISIONS.md\n' "$n"
+}
+
+# ---------------------------------------------------------------- context
+# Paquete de contexto en un único markdown para IAs sin acceso al repo
+# (ChatGPT, Claude.ai, Gemini web...). Se pega al principio de la conversación.
+cmd_context() {
+  require_root
+  local out="" copy=0 tree=1 f
+  local files=""
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -o|--output) out="$2"; shift ;;
+      -c|--copy) copy=1 ;;
+      --no-tree) tree=0 ;;
+      *) files="$files
+$1" ;;
+    esac
+    shift
+  done
+  load_config "$ROOT"
+  local tmp; tmp="$(mktemp)"
+  {
+    printf '# Contexto del proyecto %s (metaharness)\n\n' "$(basename "$ROOT")"
+    printf '> Paquete generado el %s. Trabaja con este contexto; al final dame el texto\n' "$(date '+%Y-%m-%d %H:%M')"
+    printf '> para actualizar `.ai/memory/STATE.md` y un resumen de sesión.\n\n'
+    body "$ROOT"
+    printf '\n---\n\n'
+    cat "$ROOT/.ai/memory/STATE.md"
+    printf '\n---\n\n'
+    cat "$ROOT/.ai/memory/DECISIONS.md"
+    if [ -f "$ROOT/.ai/memory/LESSONS.md" ]; then
+      printf '\n---\n\n'
+      cat "$ROOT/.ai/memory/LESSONS.md"
+    fi
+    recent_sessions "$ROOT" "$BRIEF_SESSIONS" | while IFS= read -r f; do
+      printf '\n---\n\n## Sesión: %s\n\n' "$(basename "$f" .md)"
+      cat "$f"
+    done
+    if [ "$tree" -eq 1 ] && git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1; then
+      printf '\n---\n\n## Archivos del repositorio\n\n```\n'
+      git -C "$ROOT" ls-files | head -n 400
+      printf '```\n'
+    fi
+    printf '%s\n' "$files" | while IFS= read -r f; do
+      [ -n "$f" ] || continue
+      [ -f "$ROOT/$f" ] && f="$ROOT/$f"
+      [ -f "$f" ] || { info "  ! no existe: $f"; continue; }
+      printf '\n---\n\n### %s\n\n````\n' "${f#"$ROOT"/}"
+      cat "$f"
+      printf '\n````\n'
+    done
+  } >"$tmp"
+  if [ -n "$out" ]; then cp "$tmp" "$out"; info "mh: contexto escrito en $out"
+  elif [ "$copy" -eq 0 ]; then cat "$tmp"; fi
+  if [ "$copy" -eq 1 ]; then
+    if command -v pbcopy >/dev/null; then pbcopy <"$tmp"
+    elif command -v wl-copy >/dev/null; then wl-copy <"$tmp"
+    elif command -v xclip >/dev/null; then xclip -selection clipboard <"$tmp"
+    elif command -v clip.exe >/dev/null; then clip.exe <"$tmp"
+    else rm -f "$tmp"; die "no hay portapapeles disponible (usa -o archivo)"; fi
+    info "mh: contexto copiado al portapapeles ($(wc -c <"$tmp" | tr -d ' ') bytes)"
+  fi
+  rm -f "$tmp"
+}
+
+# ---------------------------------------------------------------- sesiones paralelas
+# Cada sesión es un git worktree con su propia rama: varias IAs trabajan a la vez
+# sobre el mismo repositorio (código, .ai/ y recursos compartidos vía git) sin pisarse.
+cmd_session() {
+  require_root
+  git -C "$ROOT" rev-parse --git-dir >/dev/null 2>&1 || die "las sesiones paralelas necesitan un repositorio git"
+  local sub="${1:-list}"; [ $# -gt 0 ] && shift
+  local main name path
+  main="$(git -C "$ROOT" worktree list --porcelain | sed -n '1s/^worktree //p')"
+  case "$sub" in
+    new)
+      [ $# -gt 0 ] || die "uso: mh session new <nombre> [rama-base]"
+      name="$(slugify "$1")"
+      path="$(dirname "$main")/$(basename "$main")--$name"
+      git -C "$ROOT" worktree add -b "session/$name" "$path" "${2:-HEAD}" >&2
+      mkdir -p "$path/.ai/local"
+      info "mh: sesión '$name' lista en $path (rama session/$name)"
+      info "    cd \"$path\" && claude    # o codex, gemini, cursor ."
+      printf '%s\n' "$path" ;;
+    list)
+      git -C "$ROOT" worktree list ;;
+    end)
+      [ $# -gt 0 ] || die "uso: mh session end <nombre>"
+      name="$(slugify "$1")"
+      path="$(dirname "$main")/$(basename "$main")--$name"
+      git -C "$ROOT" worktree remove "$path" >&2
+      info "mh: worktree eliminado. Integra el trabajo con: git merge session/$name" ;;
+    *) die "uso: mh session [new|list|end]" ;;
+  esac
+}
+
+# ---------------------------------------------------------------- skill
+cmd_skill() {
+  require_root
+  local sub="${1:-list}" f name dir
+  [ $# -gt 0 ] && shift
+  case "$sub" in
+    list)
+      skill_list "$ROOT" | while IFS= read -r f; do
+        printf '%-22s %s\n' "$(basename "$(dirname "$f")")" "$(frontmatter_field "$f" description | cut -c1-100)"
+      done ;;
+    show)
+      [ $# -gt 0 ] || die "uso: mh skill show <nombre>"
+      f="$ROOT/.ai/skills/$1/SKILL.md"
+      [ -f "$f" ] || die "no existe la skill '$1' (mh skill list)"
+      cat "$f" ;;
+    new)
+      [ $# -gt 0 ] || die "uso: mh skill new <nombre> [descripción]"
+      name="$(slugify "$1")"; shift
+      dir="$ROOT/.ai/skills/$name"
+      [ -e "$dir" ] && die "ya existe $dir"
+      mkdir -p "$dir"
+      {
+        printf -- '---\nname: %s\n' "$name"
+        printf 'description: %s\n---\n\n' "${*:-QUÉ hace y CUÁNDO usarla (frases que diría el usuario). Máx. 1024 caracteres.}"
+        printf '# %s\n\n## Rol\n\n## Cuándo usarla\n\n## Proceso\n\n1.\n\n' "$name"
+        printf '## Integración con la memoria (.ai/)\n\n## Entregable\n\n## Checklist de calidad\n\n- [ ]\n\n## Anti-patrones\n\n'
+      } >"$dir/SKILL.md"
+      printf '%s\n' "${dir#"$ROOT"/}/SKILL.md"
+      info "mh: edítala (guía: docs/SKILLS.md del framework) y ejecuta .ai/bin/mh sync" ;;
+    lint)
+      lint_skills "$ROOT" && info "mh: skills válidas ($(skill_list "$ROOT" | wc -l | tr -d ' '))" ;;
+    *) die "uso: mh skill [list|show <n>|new <n> [desc]|lint]" ;;
+  esac
+}
+
+# ---------------------------------------------------------------- python (Jev, evals, MCP)
+# El núcleo de mh es bash puro; las capacidades avanzadas usan Python 3 (stdlib).
+py() { # script args...
+  local script="$MH_BIN_DIR/$1"; shift
+  command -v python3 >/dev/null 2>&1 || die "este comando necesita python3"
+  [ -f "$script" ] || die "falta $script (ejecuta 'mh init --upgrade')"
+  PYTHONDONTWRITEBYTECODE=1 exec python3 "$script" "$@"
+}
+
+cmd_guard() {
+  # Hook PreToolUse: sin python3 no bloquea nada (el flujo normal de permisos sigue).
+  command -v python3 >/dev/null 2>&1 || exit 0
+  [ -f "$MH_BIN_DIR/jev.py" ] || exit 0
+  PYTHONDONTWRITEBYTECODE=1 exec python3 "$MH_BIN_DIR/jev.py" guard
+}
+
+# ---------------------------------------------------------------- automejora
+cmd_learn() {
+  require_root
+  local agent="${MH_AGENT:-unknown}" f="$ROOT/.ai/memory/LESSONS.md"
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      -a|--agent) agent="$2"; shift ;;
+      *) break ;;
+    esac
+    shift
+  done
+  [ $# -gt 0 ] || die "uso: mh learn [-a agente] \"lección accionable\""
+  [ -f "$f" ] || printf '# Lecciones\n\n' >"$f"
+  printf -- '- %s [%s] %s\n' "$(date +%Y-%m-%d)" "$agent" "$*" >>"$f"
+  printf 'lección añadida a .ai/memory/LESSONS.md (%s en total)\n' "$(grep -c '^- ' "$f")"
+}
+
+cmd_improve() {
+  require_root
+  local sub="${1:-status}"
+  case "$sub" in
+    status)
+      printf '# Estado de la automejora\n\n'
+      printf -- '- Lecciones pendientes de consolidar: %s\n' \
+        "$(grep -c '^- ' "$ROOT/.ai/memory/LESSONS.md" 2>/dev/null || echo 0)"
+      printf -- '- Iteraciones de mejora registradas: %s\n' \
+        "$(grep -c '^## I-' "$ROOT/.ai/memory/IMPROVEMENTS.md" 2>/dev/null || echo 0)"
+      printf -- '- Sesiones con retro: %s\n\n' \
+        "$(grep -l '^## Retro' "$ROOT"/.ai/memory/sessions/*.md 2>/dev/null | wc -l | tr -d ' ')"
+      if [ -f "$ROOT/.ai/memory/IMPROVEMENTS.md" ]; then
+        printf '## Últimas iteraciones\n'
+        grep '^## I-' "$ROOT/.ai/memory/IMPROVEMENTS.md" | tail -n 5
+        printf '\n'
+      fi
+      if command -v python3 >/dev/null 2>&1 && [ -f "$MH_BIN_DIR/evals.py" ]; then
+        printf '## Evaluaciones\n'
+        PYTHONDONTWRITEBYTECODE=1 python3 "$MH_BIN_DIR/evals.py" report
+        printf '\n## Calibración de Jev\n'
+        PYTHONDONTWRITEBYTECODE=1 python3 "$MH_BIN_DIR/jev.py" calibration
+      fi
+      printf '\nSiguiente paso: pide a una IA "usa la skill self-improve".\n' ;;
+    *) die "uso: mh improve [status|run ...]" ;;
+  esac
+}
+
+# ---------------------------------------------------------------- perfil global
+# Preferencias personales comunes a todos los proyectos y todas las IAs.
+cmd_profile() {
+  local dir="${MH_PROFILE_DIR:-$HOME/.metaharness}" prof target
+  prof="$dir/profile.md"
+  mkdir -p "$dir"
+  if [ ! -f "$prof" ]; then
+    cp "$MH_HOME/template/profile.md" "$prof" 2>/dev/null || printf '# Mis preferencias\n\n- Responde en español.\n' >"$prof"
+    info "mh: creado $prof (edítalo con tus preferencias)"
+  fi
+  for target in "$HOME/.claude/CLAUDE.md" "$HOME/.codex/AGENTS.md" "$HOME/.gemini/GEMINI.md"; do
+    mkdir -p "$(dirname "$target")"
+    if [ -L "$target" ] && [ "$(readlink "$target")" = "$prof" ]; then
+      info "  = $target"
+    elif [ -e "$target" ]; then
+      info "  ! $target ya existe: fusiónalo con $prof y vuelve a ejecutar 'mh profile'"
+    else
+      ln -s "$prof" "$target"; info "  + $target -> $prof"
+    fi
+  done
+}
+
+usage() {
+  cat <<EOF
+metaharness $MH_VERSION — contexto compartido para Claude y otras IAs
+
+Uso: mh <comando> [opciones]
+
+  init [dir] [--upgrade]   Instala metaharness en un proyecto (o actualiza bin/protocolo/hooks)
+  sync                     Genera AGENTS.md, CLAUDE.md, GEMINI.md... desde .ai/
+  check                    Falla si los adaptadores no están sincronizados (CI / pre-commit)
+  brief [--no-state]       Contexto breve de inicio de sesión (lo usa el hook de Claude)
+  context [archivos] [-o f] [-c] [--no-tree]
+                           Paquete de contexto para IAs web (ChatGPT, Claude.ai...)
+  handoff [-a agente] [-t título]
+                           Registra una sesión en .ai/memory/sessions/ (cuerpo por stdin)
+  decision "título"        Añade una decisión a .ai/memory/DECISIONS.md
+  skill list | show <n>    Lista / muestra las skills del proyecto
+  skill new <n> [desc]     Crea una skill nueva en .ai/skills/
+  skill lint               Valida el formato de las skills
+  learn "lección"          Guarda una lección en .ai/memory/LESSONS.md
+  improve [status]         Estado de la automejora (lecciones, iteraciones, evals, calibración)
+  improve run --agent IA [--iterations N] [--metric routing|behavior|CMD] [--gate CMD]
+                           Bucle autónomo de automejora: worktree aislado, invariantes y
+                           trinquete aplicados por código, variantes archivadas, linaje
+  autonomy [supervised|standard|autonomous|full]
+                           Nivel de autonomía: política de permisos sin preguntas
+  agent IA "tarea"         Lanza claude/codex/gemini (u otro CLI) sin supervisión
+  stop-check               Hook Stop: no terminar sin actualizar la memoria
+  eval routing|run|report  Evaluaciones: enrutado de skills y casos con agentes reales
+  decide --noul/--choice/--score ...  Decisión tipada con Jev (noul/choice/score) y bandas de confianza
+  route "tarea"            Qué skill usar para una tarea (Jev o motor léxico local)
+  outcome <id> correct|incorrect   Resultado real de una decisión (calibración)
+  guard                    Hook PreToolUse: bloquea o pide confirmación en acciones de riesgo
+  mcp                      Servidor MCP (stdio) con memoria, skills y Jev
+  session new <nombre>     Sesión paralela en un git worktree propio
+  session list | end <n>   Lista / cierra sesiones paralelas
+  profile                  Enlaza ~/.metaharness/profile.md a Claude, Codex y Gemini
+  version
+EOF
+}
+
+main() {
+  local cmd="${1:-help}"; [ $# -gt 0 ] && shift
+  case "$cmd" in
+    init) cmd_init "$@" ;;
+    sync) cmd_sync ;;
+    check) cmd_check ;;
+    brief) cmd_brief "$@" ;;
+    context|ctx) cmd_context "$@" ;;
+    handoff) cmd_handoff "$@" ;;
+    decision) cmd_decision "$@" ;;
+    session|s) cmd_session "$@" ;;
+    skill|skills) cmd_skill "$@" ;;
+    learn) cmd_learn "$@" ;;
+    improve)
+      if [ "${1:-}" = "run" ]; then shift; py improve.py "$@"; else cmd_improve "$@"; fi ;;
+    autonomy) py autonomy.py level "$@" ;;
+    agent) py autonomy.py agent "$@" ;;
+    stop-check)
+      command -v python3 >/dev/null 2>&1 || exit 0
+      PYTHONDONTWRITEBYTECODE=1 exec python3 "$MH_BIN_DIR/autonomy.py" stop-check ;;
+    eval|evals) py evals.py "$@" ;;
+    decide) py jev.py ask "$@" ;;
+    route) py jev.py route "$@" ;;
+    outcome) py jev.py outcome "$@" ;;
+    calibration) py jev.py calibration ;;
+    guard) cmd_guard ;;
+    mcp) py mcp_server.py ;;
+    profile) cmd_profile ;;
+    version|--version|-v) printf 'metaharness %s\n' "$MH_VERSION" ;;
+    help|-h|--help) usage ;;
+    *) usage >&2; exit 1 ;;
+  esac
+}
+
+main "$@"

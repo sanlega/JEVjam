@@ -1,0 +1,26 @@
+[project]
+name = "jevjam"
+version = "0.1.0"
+description = "Una banda de IA que improvisa contigo en directo, con Jev (TypeSafe) como capa de decisión"
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=2.0",
+    "sounddevice>=0.5",
+    "mido>=1.3",
+    "python-rtmidi>=1.5",
+    "typesafe-sdk>=0.7",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+packages = ["jevjam"]

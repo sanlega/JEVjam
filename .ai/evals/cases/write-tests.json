@@ -1,0 +1,11 @@
+{
+  "id": "write-tests-01",
+  "skill": "write-tests",
+  "prompt": "Añade tests a la función que calcula descuentos por volumen.",
+  "criteria": [
+    "Reutiliza el framework y los patrones de tests del proyecto",
+    "Cubre casos límite además del caso feliz",
+    "Comprueba que los tests nuevos pueden fallar",
+    "Evita dependencias de la hora actual, la red o el orden"
+  ]
+}

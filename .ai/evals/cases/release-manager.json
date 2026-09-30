@@ -1,0 +1,11 @@
+{
+  "id": "release-manager-01",
+  "skill": "release-manager",
+  "prompt": "Prepara la próxima versión del proyecto.",
+  "criteria": [
+    "Revisa los cambios desde la última etiqueta y elige la versión según SemVer",
+    "Redacta un changelog orientado a usuarios",
+    "Define un plan de rollback",
+    "Pide confirmación antes de etiquetar, publicar o desplegar"
+  ]
+}

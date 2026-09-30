@@ -1,0 +1,12 @@
+{
+  "id": "plan-feature-01",
+  "skill": "plan-feature",
+  "prompt": "Planifica añadir exportación a CSV de los informes. No implementes nada todavía.",
+  "criteria": [
+    "Incluye criterios de aceptación comprobables",
+    "Incluye una sección explícita de fuera de alcance",
+    "Divide el trabajo en tareas pequeñas con verificación concreta cada una",
+    "Guarda el plan en .ai/memory/plans/",
+    "No implementa código"
+  ]
+}

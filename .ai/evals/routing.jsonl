@@ -1,0 +1,45 @@
+{"text": "Acabo de clonar este repo y no sé por dónde empieza, ¿me haces un mapa?", "skill": "explore-codebase"}
+{"text": "¿Dónde se gestiona la autenticación en este proyecto?", "skill": "explore-codebase"}
+{"text": "Necesito entender cómo está organizado el backend antes de tocar nada", "skill": "explore-codebase"}
+{"text": "Quiero añadir pagos con Stripe, ¿cómo lo harías? Divídelo en tareas", "skill": "plan-feature"}
+{"text": "Diseña la migración del monolito a servicios", "skill": "plan-feature"}
+{"text": "Planifica el sistema de notificaciones por email", "skill": "plan-feature"}
+{"text": "Implementa la tarea 3 del plan", "skill": "implement-task"}
+{"text": "Añade un endpoint para borrar usuarios", "skill": "implement-task"}
+{"text": "Continúa con el siguiente paso de STATE.md", "skill": "implement-task"}
+{"text": "Este módulo no tiene tests, añade cobertura", "skill": "write-tests"}
+{"text": "¿Cómo pruebo esta función que depende de la hora actual?", "skill": "write-tests"}
+{"text": "Sube la cobertura del parser", "skill": "write-tests"}
+{"text": "El login da un 500 desde ayer, investiga por qué", "skill": "debug-issue"}
+{"text": "El CI está en rojo y no sé por qué falla este test", "skill": "debug-issue"}
+{"text": "No funciona la exportación a PDF, arregla este error", "skill": "debug-issue"}
+{"text": "Revisa este PR antes de mergear", "skill": "code-review"}
+{"text": "¿Está bien este código? Dame feedback del diff", "skill": "code-review"}
+{"text": "Haz review de la rama de Codex", "skill": "code-review"}
+{"text": "Este archivo tiene 2000 líneas, simplifícalo sin cambiar lo que hace", "skill": "refactor-safely"}
+{"text": "Reorganiza los módulos de utilidades, hay mucha duplicación", "skill": "refactor-safely"}
+{"text": "Limpia la deuda técnica del servicio de facturas", "skill": "refactor-safely"}
+{"text": "¿Es seguro este endpoint de subida de archivos?", "skill": "security-audit"}
+{"text": "Haz una revisión de seguridad antes de salir a producción", "skill": "security-audit"}
+{"text": "Audita vulnerabilidades en la autenticación", "skill": "security-audit"}
+{"text": "La página de búsqueda va lenta, optimízala", "skill": "optimize-performance"}
+{"text": "El proceso consume 4 GB de memoria, reduce el consumo", "skill": "optimize-performance"}
+{"text": "Mejora el tiempo de carga de la web", "skill": "optimize-performance"}
+{"text": "Escribe el README del proyecto", "skill": "write-docs"}
+{"text": "Documenta la API pública del SDK", "skill": "write-docs"}
+{"text": "Añade docstrings a este módulo y explica cómo se usa", "skill": "write-docs"}
+{"text": "Prepara la release 2.0 con su changelog", "skill": "release-manager"}
+{"text": "Sube la versión y publica el paquete en npm", "skill": "release-manager"}
+{"text": "Quiero desplegar a producción esta tarde", "skill": "release-manager"}
+{"text": "Reparte este plan entre Claude y Codex para trabajar en paralelo", "skill": "orchestrate-agents"}
+{"text": "Coordina tres sesiones para terminar la feature antes", "skill": "orchestrate-agents"}
+{"text": "Integra el trabajo de las sesiones de ayer", "skill": "orchestrate-agents"}
+{"text": "Abre Chrome y rellena el formulario de contacto", "skill": "computer-control"}
+{"text": "Haz clic en exportar dentro de la app de facturas", "skill": "computer-control"}
+{"text": "Automatiza en el navegador la descarga de los informes mensuales", "skill": "computer-control"}
+{"text": "Clasifica estos 200 tickets por categoría y urgencia", "skill": "decide-with-jev"}
+{"text": "Decide si este comentario es spam", "skill": "decide-with-jev"}
+{"text": "Prioriza estos issues según su gravedad", "skill": "decide-with-jev"}
+{"text": "Aprende de las últimas sesiones y mejora el harness", "skill": "self-improve"}
+{"text": "Se repiten los mismos errores, optimiza las skills", "skill": "self-improve"}
+{"text": "Ejecuta un ciclo de automejora", "skill": "self-improve"}

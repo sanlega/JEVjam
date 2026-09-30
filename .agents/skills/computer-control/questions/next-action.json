@@ -1,0 +1,28 @@
+{
+  "action": {
+    "type": "choice",
+    "instructions": "Dado el objetivo del paso en `step`, la observación actual en `observation` y las acciones recientes en `recent_actions`, ¿qué operación y objetivo debe ejecutarse ahora? Elige 'other' si ninguna acerca al objetivo.",
+    "criteria": {
+      "click:ELEMENT_ID": "Sustituye por candidatos reales generados desde la observación, p. ej. Botón 'Pagar' del formulario",
+      "fill:ELEMENT_ID": "Escribir el texto del plan en el campo indicado",
+      "scroll:down": "Desplazarse para ver más contenido",
+      "wait": "La interfaz está cargando o cambiando",
+      "done": "El objetivo del paso ya se cumple en la observación actual",
+      "other": null
+    }
+  },
+  "risk": {
+    "type": "score",
+    "instructions": "¿Qué consecuencias tendría ejecutar la acción más probable para el objetivo `step` en esta pantalla?",
+    "criteria": [
+      "Ninguna: solo navega o lee",
+      "Cambia datos locales reversibles (borradores, filtros, campos sin enviar)",
+      "Envía o guarda datos visibles para otros o difíciles de deshacer",
+      "Pago, borrado, publicación o comunicación irreversible"
+    ]
+  },
+  "irreversible": {
+    "type": "noul",
+    "instructions": "¿Completar el paso `step` en esta pantalla envía, paga, borra, publica o comunica algo a terceros de forma irreversible?"
+  }
+}

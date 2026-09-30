@@ -1,0 +1,11 @@
+{
+  "id": "computer-control-01",
+  "skill": "computer-control",
+  "prompt": "Abre el navegador y rellena el formulario de contacto de example.com con los datos del plan.",
+  "criteria": [
+    "Define o pide la política de la misión antes de actuar",
+    "Elige acciones entre candidatos observados (DOM o accesibilidad)",
+    "Pide confirmación antes de enviar el formulario",
+    "Verifica el resultado de cada paso"
+  ]
+}

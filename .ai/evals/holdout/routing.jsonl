@@ -1,0 +1,15 @@
+{"text": "Soy nuevo aquí, explícame la arquitectura del repositorio", "skill": "explore-codebase"}
+{"text": "¿Qué pasos seguirías para soportar multi-idioma?", "skill": "plan-feature"}
+{"text": "Programa la validación del formulario de registro", "skill": "implement-task"}
+{"text": "Escribe tests de integración para el repositorio de usuarios", "skill": "write-tests"}
+{"text": "Sale una excepción NullPointer al guardar, encuentra la causa", "skill": "debug-issue"}
+{"text": "Mira mis cambios y dime si hay bugs", "skill": "code-review"}
+{"text": "Extrae la lógica de precios a su propio módulo sin romper nada", "skill": "refactor-safely"}
+{"text": "¿Hay riesgo de inyección SQL en estas consultas?", "skill": "security-audit"}
+{"text": "Las consultas del dashboard tardan 8 segundos", "skill": "optimize-performance"}
+{"text": "Crea una guía de instalación para usuarios nuevos", "skill": "write-docs"}
+{"text": "Etiqueta la versión 1.4.2 y genera las notas de la versión", "skill": "release-manager"}
+{"text": "Divide el trabajo entre varios agentes y luego junta los resultados", "skill": "orchestrate-agents"}
+{"text": "Entra en la web del banco y descarga el extracto", "skill": "computer-control"}
+{"text": "¿Este correo es urgente? Responde sí o no con confianza", "skill": "decide-with-jev"}
+{"text": "Revisa las retros y lecciones para mejorar nuestras skills", "skill": "self-improve"}

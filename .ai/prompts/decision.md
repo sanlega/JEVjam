@@ -1,0 +1,9 @@
+---
+description: Registra una decisión de arquitectura o convención
+---
+Registra la siguiente decisión en `.ai/memory/DECISIONS.md` usando
+`.ai/bin/mh decision "<título>"` y completa contexto, decisión, alternativas
+descartadas y consecuencias. Si afecta a las convenciones, actualiza también
+`.ai/context/20-conventions.md` y ejecuta `.ai/bin/mh sync`.
+
+Decisión: $ARGUMENTS

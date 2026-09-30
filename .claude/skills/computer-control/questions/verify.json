@@ -1,0 +1,21 @@
+{
+  "step_done": {
+    "type": "noul",
+    "instructions": "¿La observación en `observation` demuestra que se cumple el predicado de verificación en `predicate`?"
+  },
+  "unexpected_state": {
+    "type": "noul",
+    "instructions": "¿`observation` muestra un error, un diálogo inesperado, un inicio de sesión o una página distinta de la esperada para `step`?"
+  },
+  "next": {
+    "type": "choice",
+    "instructions": "Según `observation`, `step` y `predicate`, ¿cómo debe continuar el agente?",
+    "criteria": {
+      "continue": "El paso se completó; pasar al siguiente",
+      "retry": "Fallo transitorio; repetir el paso con una nueva observación",
+      "replan": "La interfaz no es la esperada; hay que replanificar",
+      "escalate": "Requiere intervención humana (credenciales, captcha, ambigüedad, riesgo)",
+      "other": null
+    }
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "id": "security-audit-01",
+  "skill": "security-audit",
+  "prompt": "Audita la seguridad del endpoint de subida de archivos.",
+  "criteria": [
+    "Describe un modelo de amenazas con actores y superficie",
+    "Revisa autorización por recurso además de autenticación",
+    "Cada hallazgo describe un ataque concreto y su corrección",
+    "No copia secretos reales en el informe"
+  ]
+}

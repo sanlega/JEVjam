@@ -1,0 +1,22 @@
+{
+  "_doc": "Copia a .ai/local/computer-policy.json y ajústala a cada misión. La aplica el código del bucle, no el modelo.",
+  "mission": "Descripción del objetivo acordado con el usuario",
+  "mode": "preview",
+  "allowed_apps": ["Google Chrome", "TextEdit"],
+  "allowed_domains": ["example.com"],
+  "denied_paths": ["~/.ssh", "~/.aws", "~/.gnupg", "~/Library/Keychains", ".env", ".ai/bin"],
+  "confirm_if": {
+    "irreversible": true,
+    "risk_at_least": 2,
+    "band_not": "auto"
+  },
+  "limits": {
+    "max_steps": 40,
+    "max_retries_per_step": 2,
+    "max_minutes": 15
+  },
+  "data": {
+    "may_type": ["textos del plan aprobados por el usuario"],
+    "never_type": ["contraseñas", "números de tarjeta", "códigos 2FA"]
+  }
+}

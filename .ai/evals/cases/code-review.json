@@ -1,0 +1,11 @@
+{
+  "id": "code-review-01",
+  "skill": "code-review",
+  "prompt": "Revisa los cambios del último commit como si fuera un pull request.",
+  "criteria": [
+    "Lee el contexto completo de los archivos modificados, no solo el diff",
+    "Clasifica los hallazgos por severidad",
+    "Cada hallazgo importante incluye un escenario concreto de fallo",
+    "Da un veredicto claro sobre si se puede integrar"
+  ]
+}

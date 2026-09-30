@@ -1,0 +1,16 @@
+# Configuración de metaharness (sintaxis shell).
+# Adaptadores a generar con `mh sync`:
+#   agents  -> AGENTS.md (Codex, Cursor, Windsurf, Zed, Jules, Amp, opencode...)
+#   claude  -> CLAUDE.md + .claude/commands/  (Claude Code)
+#   gemini  -> GEMINI.md + .gemini/commands/  (Gemini CLI)
+#   copilot -> .github/copilot-instructions.md
+#   cursor  -> .cursor/rules/metaharness.mdc
+#   aider   -> .aider.conf.yml
+ADAPTERS="agents claude gemini copilot cursor"
+
+# Instrucciones solo para una herramienta: crea .ai/tools/<adaptador>.md
+# (p. ej. .ai/tools/claude.md) y se añade únicamente a su archivo.
+
+# Nº de sesiones recientes que muestra `mh brief`.
+BRIEF_SESSIONS=3
+

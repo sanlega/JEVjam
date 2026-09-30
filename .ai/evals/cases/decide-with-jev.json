@@ -1,0 +1,11 @@
+{
+  "id": "decide-with-jev-01",
+  "skill": "decide-with-jev",
+  "prompt": "Clasifica estos tickets por categoría y urgencia: 'La app se cierra al exportar', '¿Se puede pagar con PayPal?', 'Me cobrasteis dos veces'.",
+  "criteria": [
+    "Formula la decisión como preguntas tipadas (choice, score o noul)",
+    "Incluye una opción de reserva tipo other en las elecciones",
+    "Agrupa las preguntas independientes en una sola petición",
+    "Actúa o escala según la banda de confianza"
+  ]
+}

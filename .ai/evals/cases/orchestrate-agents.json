@@ -1,0 +1,11 @@
+{
+  "id": "orchestrate-agents-01",
+  "skill": "orchestrate-agents",
+  "prompt": "Divide el plan en curso entre dos agentes que trabajen en paralelo.",
+  "criteria": [
+    "Los encargos tocan conjuntos de archivos disjuntos",
+    "Cada encargo es autocontenido con criterios y verificación",
+    "Usa sesiones aisladas (worktrees o ramas) por agente",
+    "Prevé revisión e integración secuencial con tests"
+  ]
+}

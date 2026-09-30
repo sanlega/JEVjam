@@ -1,0 +1,11 @@
+{
+  "id": "debug-issue-01",
+  "skill": "debug-issue",
+  "prompt": "Los usuarios reportan que al guardar un perfil con el nombre vacío la app devuelve un error 500. Arréglalo.",
+  "criteria": [
+    "Reproduce el fallo antes de cambiar código",
+    "Explica la causa raíz, no solo el síntoma",
+    "Añade un test de regresión que fallaba antes del arreglo",
+    "El arreglo es mínimo y no mezcla cambios no relacionados"
+  ]
+}

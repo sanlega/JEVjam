@@ -1,0 +1,11 @@
+{
+  "id": "write-docs-01",
+  "skill": "write-docs",
+  "prompt": "Escribe una guía de inicio rápido para nuevos desarrolladores.",
+  "criteria": [
+    "Declara la audiencia y el objetivo al principio",
+    "Los comandos se verifican o se marcan como no verificados",
+    "Coincide con el código actual en nombres y comandos",
+    "Enlaza documentación existente en lugar de duplicarla"
+  ]
+}

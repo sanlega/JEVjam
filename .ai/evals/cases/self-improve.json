@@ -1,0 +1,12 @@
+{
+  "id": "self-improve-01",
+  "skill": "self-improve",
+  "prompt": "Ejecuta un ciclo de automejora del harness con las señales disponibles.",
+  "criteria": [
+    "Recoge señales de lecciones, retros o evaluaciones antes de cambiar nada",
+    "Formula una única hipótesis con métrica y umbral",
+    "Mide línea base y variante con las mismas evaluaciones",
+    "No modifica los archivos de .ai/evals",
+    "Registra la iteración en IMPROVEMENTS.md"
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "id": "refactor-safely-01",
+  "skill": "refactor-safely",
+  "prompt": "Divide el módulo más largo del proyecto en piezas más pequeñas sin cambiar su comportamiento.",
+  "criteria": [
+    "Ejecuta los tests antes de empezar para tener línea base",
+    "Avanza en pasos pequeños manteniendo los tests en verde",
+    "No cambia contratos públicos ni comportamiento",
+    "No mezcla arreglos de bugs con el refactor"
+  ]
+}

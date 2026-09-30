@@ -1,0 +1,11 @@
+{
+  "id": "explore-codebase-01",
+  "skill": "explore-codebase",
+  "prompt": "Es tu primera sesión en este repositorio. Entiende cómo está organizado y deja el contexto listo para otras IAs.",
+  "criteria": [
+    "Lee el contexto existente de .ai/ antes de explorar el código",
+    "Identifica los comandos de instalación y test a partir de manifiestos o CI",
+    "Actualiza .ai/context con afirmaciones comprobadas en el código y rutas reales",
+    "No modifica código de producción"
+  ]
+}

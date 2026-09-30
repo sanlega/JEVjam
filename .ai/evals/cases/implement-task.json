@@ -1,0 +1,11 @@
+{
+  "id": "implement-task-01",
+  "skill": "implement-task",
+  "prompt": "Implementa una función que valide direcciones de email y úsala en el registro de usuarios.",
+  "criteria": [
+    "Estudia código existente similar antes de escribir",
+    "Añade o actualiza tests que cubren el comportamiento",
+    "Ejecuta tests o lint y reporta el resultado real",
+    "Actualiza STATE.md o el plan con el avance"
+  ]
+}

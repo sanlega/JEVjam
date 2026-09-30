@@ -1,0 +1,11 @@
+{
+  "id": "optimize-performance-01",
+  "skill": "optimize-performance",
+  "prompt": "El listado de pedidos tarda 5 segundos. Hazlo más rápido.",
+  "criteria": [
+    "Establece una línea base medida antes de cambiar nada",
+    "Perfila o analiza para localizar el cuello de botella real",
+    "Mide después de cada cambio y reporta antes y después",
+    "Mantiene los tests en verde"
+  ]
+}

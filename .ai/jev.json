@@ -1,0 +1,5 @@
+{
+  "_doc": "Política de decisiones con Jev. confidence >= auto: actuar solo; >= confirm: pedir confirmación o verificar; por debajo: escalar a un humano. Ajusta los umbrales con datos reales: mh calibration.",
+  "thresholds": { "auto": 0.9, "confirm": 0.5 },
+  "log": true
+}

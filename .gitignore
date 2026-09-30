@@ -1,0 +1,12 @@
+
+# metaharness: material privado/pesado
+.ai/local/
+
+# secretos y entorno local
+.env
+.venv/
+__pycache__/
+*.pyc
+recordings/
+*.egg-info/
+.DS_Store
