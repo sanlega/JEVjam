@@ -77,7 +77,7 @@ def build_questions() -> dict:
     }
     for agent, options in AGENT_OPTIONS.items():
         # Sin "mantén lo anterior": Jev lo lee literalmente y se ancla. La continuidad la
-        # pone el código (histéresis en conductor._stabilize).
+        # pone el código (fraseo en phrasing.py: cambios por frases, con histéresis).
         q[f"{agent}_part"] = Choice(
             instructions=f"You are the {agent} player in a live jam backing `human_player`. What should you "
                          f"play in the next bar to match how `human_player` is playing now, especially how loud and busy "

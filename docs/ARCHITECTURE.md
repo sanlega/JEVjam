@@ -254,6 +254,24 @@ mayor), cuál tiene su acorde de tónica presente y al abrir frase (C mayor fren
 menor), y el perfil de croma como desempate. Memoria con olvido 0,8 por compás y cambio
 solo si otra tonalidad gana 2 compases seguidos.
 
+### Fraseo (`phrasing.py`)
+
+En las jams reales la banda cambiaba de papel cada 1,2–2 compases: Jev decide compás a
+compás y oscila mucho (en un compás 1,0 a "suave" y en el siguiente 0,65 a "a tope"). Ahora:
+
+- los votos de Jev (probabilidades) se acumulan durante la frase y se decide por mayoría
+  al empezar la siguiente; el papel actual se mantiene salvo que otro le gane por > 0,2
+  (con 0,1 alternaba frase sí, frase no en la jam real);
+- todos los músicos cambian a la vez, en el pulso 1 de la frase (2/4/8/16 compases);
+- excepción: `section_change` de Jev ≥ 0,85 cambia en el compás siguiente (decidiendo
+  con la opinión actual, no con los votos de la sección que termina) y abre frase nueva;
+- el redoble es un adorno del último compás de la frase, no un papel;
+- la energía sigue a Jev como mucho ±0,5 por compás;
+- bajo y teclado solo entran al empezar un grupo de 4 compases y no se retiran por un
+  compás sin acorde claro.
+
+Con la misma jam real: de ~18 cambios de batería en 28 compases a 3 cambios de papel.
+
 ## 8. Limitaciones conocidas del PoC y siguientes pasos
 
 1. **Validar con instrumentos reales**: las pruebas usan un humano sintético con

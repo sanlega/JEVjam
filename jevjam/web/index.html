@@ -172,6 +172,17 @@
     </div>
 
     <div class="card">
+      <h2>Banda</h2>
+      <label class="field" for="phrase_bars">Cambiar de papel como mínimo cada</label>
+      <select id="phrase_bars">
+        <option value="2">2 compases</option><option value="4" selected>4 compases</option>
+        <option value="8">8 compases</option><option value="16">16 compases</option>
+      </select>
+      <div class="hint">Los músicos deciden en frases: cambian todos juntos al empezar una frase nueva
+        (con un redoble antes). Solo un cambio de sección muy claro se adelanta. La intensidad sí sigue tu volumen compás a compás, sin saltos.</div>
+    </div>
+
+    <div class="card">
       <h2>Salida y sesión</h2>
       <label class="field" for="out">Suena en</label>
       <select id="out"></select>
@@ -197,6 +208,7 @@
             <span>tonalidad <b id="key">—</b></span>
             <span><b id="bpmNow">—</b> BPM</span>
             <span>compás <b id="barNow">—</b></span>
+            <span>frase <b id="phraseNow">—</b></span>
             <span>Jev <b id="lat">—</b></span>
           </div>
           <div class="meter" id="meter" title="energía que pide Jev (0-5)"></div>
@@ -252,7 +264,7 @@ let running = false;
 function load() { try { return JSON.parse(localStorage.getItem("jevjam") || "{}"); } catch { return {}; } }
 function save() {
   const s = { ...state };
-  for (const id of ["device","channel","progression","demo_bpm","file","bpm","tonic","mode","out","bars"]) s[id] = $(id).value;
+  for (const id of ["device","channel","progression","demo_bpm","file","bpm","tonic","mode","out","bars","phrase_bars"]) s[id] = $(id).value;
   for (const id of ["hear_input","record"]) s[id] = $(id).checked;
   try { localStorage.setItem("jevjam", JSON.stringify(s)); } catch {}
 }
@@ -347,6 +359,7 @@ function config() {
     bpm: state.tempo === "fixed" ? Number($("bpm").value) : null,
     key: state.keymode === "fixed" ? `${$("tonic").value} ${$("mode").value}` : null,
     bars: $("bars").value ? Number($("bars").value) : null,
+    phrase_bars: Number($("phrase_bars").value),
   };
   if (state.input === "mic") { cfg.device = $("device").value; cfg.channel = Number($("channel").value || 0); }
   if (state.input === "demo") { cfg.progression = $("progression").value; cfg.demo_bpm = Number($("demo_bpm").value); }
@@ -393,7 +406,7 @@ function logLine(text, cls = "") {
 }
 function keyEs(k) { if (!k) return "—"; const [t, m] = k.split(" "); return `${t} ${KEY_ES[m] || m}`; }
 function resetLive() {
-  for (const id of ["heard","playing","key","bpmNow","barNow","lat"]) $(id).textContent = "—";
+  for (const id of ["heard","playing","key","bpmNow","barNow","lat","phraseNow"]) $(id).textContent = "—";
   for (const a of ["drums","bass","keys"]) { $("p-" + a).textContent = "—"; $("p-" + a).className = "part silent"; $("c-" + a).style.width = 0; }
   $("modeText").textContent = ""; $("alerts").innerHTML = ""; $("log").innerHTML = "";
   [...$("meter").children].forEach(i => i.classList.remove("on"));
@@ -404,18 +417,19 @@ function onBar(b) {
   $("key").textContent = keyEs(b.key) + (b.key_fixed ? " (fija)" : "");
   $("bpmNow").textContent = Math.round(b.bpm);
   $("barNow").textContent = b.bar + 1;
+  $("phraseNow").textContent = `${b.phrase_pos + 1}/${b.phrase_bars}`;
   $("lat").textContent = b.reused ? "mantiene" : `${b.latency_ms} ms`;
   [...$("meter").children].forEach((i, n) => i.classList.toggle("on", n < Math.round(b.energy)));
   for (const a of ["drums","bass","keys"]) {
-    let p = b.parts[a];
-    if (b.harmony_mode === "waiting" && a !== "drums") p = "tacet";
+    const p = b.parts[a] || "tacet";
     $("p-" + a).textContent = PARTS[a][p] || p;
     $("p-" + a).className = "part" + (p === "tacet" ? " silent" : "");
     $("c-" + a).style.width = ((b.confidence && b.confidence[a]) || 0) * 100 + "%";
   }
   $("modeText").textContent = MODES[b.harmony_mode] || "";
-  logLine(`${String(b.bar + 1).padStart(3)} · oigo ${b.heard.padEnd(5)} → toco ${b.playing.padEnd(5)} · energía ${b.energy.toFixed(1)} · ` +
-          `${PARTS.drums[b.parts.drums]}/${PARTS.bass[b.parts.bass]}/${PARTS.keys[b.parts.keys]}`);
+  const part = (a) => PARTS[a][b.parts[a] || "tacet"] || b.parts[a];
+  logLine(`${String(b.bar + 1).padStart(3)} ${b.phrase_pos + 1}/${b.phrase_bars} · oigo ${b.heard.padEnd(5)} → toco ${b.playing.padEnd(5)} · ` +
+          `energía ${b.energy.toFixed(1)} · ${part("drums")}/${part("bass")}/${part("keys")}`, b.changed ? "info" : "");
 }
 function onSummary(s) {
   const box = $("alerts");
@@ -519,7 +533,7 @@ $("channel").addEventListener("change", updateMonitor);
 $("device").addEventListener("change", updateMonitor);
 
 // ------------------------------------------------------------ arranque
-for (const id of ["progression","demo_bpm","bpm","tonic","mode","bars"]) if (saved[id] !== undefined) $(id).value = saved[id];
+for (const id of ["progression","demo_bpm","bpm","tonic","mode","bars","phrase_bars"]) if (saved[id] !== undefined) $(id).value = saved[id];
 for (const id of ["hear_input","record"]) if (saved[id] !== undefined) $(id).checked = saved[id];
 $("bpmVal").textContent = $("bpm").value; $("demoBpmVal").textContent = $("demo_bpm").value;
 setSeg("input", saved.input || "mic"); setSeg("tempo", saved.tempo || "auto"); setSeg("keymode", saved.keymode || "auto");

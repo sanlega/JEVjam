@@ -145,6 +145,9 @@ def parse_config(body: dict) -> SessionConfig:
     cfg.demo_bpm = float(cfg.demo_bpm)
     cfg.bars = int(cfg.bars) if cfg.bars not in (None, "") else None
     cfg.channel = int(cfg.channel or 0)
+    cfg.phrase_bars = int(cfg.phrase_bars)
+    if cfg.phrase_bars not in (2, 4, 8, 16):
+        raise ValueError("phrase_bars debe ser 2, 4, 8 o 16")
     cfg.key = cfg.key or None
     cfg.device = str(cfg.device) if cfg.device not in (None, "") else None
     for name in ("bpm", "demo_bpm"):

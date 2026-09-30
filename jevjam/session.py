@@ -41,6 +41,7 @@ class SessionConfig:
     mute_demo: bool = False
     sr: int = 48000
     record: bool = True
+    phrase_bars: int = 4  # los músicos solo cambian de papel al empezar una frase de estos compases
 
     def fixed_key(self) -> tuple[int, str] | None:
         return parse_key(self.key) if self.key else None  # ValueError si no es válida
@@ -114,7 +115,7 @@ class Session:
 
         conductor = self.conductor = Conductor(
             worker, scheduler, sr=cfg.sr, fixed_bpm=cfg.bpm, fixed_key=fixed_key, recorder=recorder,
-            verbose=self.verbose, on_bar=on_bar,
+            verbose=self.verbose, on_bar=on_bar, phrase_bars=cfg.phrase_bars,
             on_message=lambda text, level: emit("message", {"text": text, "level": level}),
             on_level=lambda level: emit("level", level))
         source = None

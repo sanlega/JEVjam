@@ -26,6 +26,8 @@ def main(argv=None) -> int:
     p.add_argument("--bpm", type=float, help="tempo fijo (desactiva la detección)")
     p.add_argument("--key", help="tonalidad fija, p. ej. 'A minor', 'Am', 'C', 'F# major' (desactiva la detección)")
     p.add_argument("--bars", type=int, help="nº de compases a tocar")
+    p.add_argument("--phrase", type=int, default=4, choices=[2, 4, 8, 16],
+                   help="los músicos cambian de papel como mínimo cada tantos compases (por defecto 4)")
     p.add_argument("--model", help="modelo de Jev (por defecto jev-1.13.0 o $JEV_MODEL)")
     p.add_argument("--progression", default="Am,F,C,G", help="progresión del humano de --input demo")
     p.add_argument("--demo-bpm", type=float, default=100)
@@ -45,7 +47,8 @@ def main(argv=None) -> int:
 
     cfg = SessionConfig(input=args.input, device=args.device, channel=args.channel, out=args.out, bpm=args.bpm,
                         key=args.key, bars=args.bars, model=args.model, progression=args.progression,
-                        demo_bpm=args.demo_bpm, mute_demo=args.mute_demo, sr=args.sr, record=not args.no_record)
+                        demo_bpm=args.demo_bpm, mute_demo=args.mute_demo, sr=args.sr, record=not args.no_record,
+                        phrase_bars=args.phrase)
     try:
         cfg.fixed_key()
     except ValueError as exc:

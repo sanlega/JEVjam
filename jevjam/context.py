@@ -71,8 +71,9 @@ class BandMemory:
     """Lo que la banda ha hecho: cada agente recuerda su papel reciente."""
 
     parts: dict[str, list[str]] = field(default_factory=dict)
-    bars_in_section: int = 0
     section: int = 1
+    phrase_pos: int = 0  # posición en su frase del compás que se va a decidir
+    phrase_len: int = 4
     # Lo que tocó el humano en cada compás completo (volumen en dB, ataques por pulso).
     bar_rms_db: list[float] = field(default_factory=list)
     bar_onsets_per_beat: list[float] = field(default_factory=list)
@@ -131,11 +132,13 @@ def bar_trend(bar_rms_db: list[float]) -> str | None:
     return trend_words(bar_rms_db[-1] - float(np.mean(bar_rms_db[-4:-1])))
 
 
-def phrase_words(bars_in_section: int, phrase_len: int = 4) -> str:
-    """Posición del PRÓXIMO compás dentro de una frase de 4 (calculada en código, dicha en palabras)."""
-    pos = bars_in_section % phrase_len
-    return ("first bar of a phrase", "second bar of a phrase", "third bar of a phrase",
-            "last bar of a phrase, leading into a new phrase")[pos]
+def phrase_words(pos: int, phrase_len: int = 4) -> str:
+    """Posición del compás que se decide dentro de su frase (calculada en código, dicha en palabras)."""
+    if pos % phrase_len == 0:
+        return "first bar of a new phrase"
+    if pos % phrase_len == phrase_len - 1:
+        return "last bar of a phrase, leading into a new phrase"
+    return "middle of a phrase"
 
 
 def build_state(snap: Snapshot, memory: BandMemory, beats_per_bar: int = 4) -> dict:
@@ -155,8 +158,7 @@ def build_state(snap: Snapshot, memory: BandMemory, beats_per_bar: int = 4) -> d
             "playing": "stopped playing" if snap.silence_seconds > 2.0 else "playing",
         },
         "band": {
-            "position_in_phrase": phrase_words(memory.bars_in_section),
-            "section": "just started a new section" if memory.bars_in_section == 0 and memory.section > 1
-                       else f"section {memory.section}",
+            "position_in_phrase": phrase_words(memory.phrase_pos, memory.phrase_len),
+            "section": f"section {memory.section}",
         },
     }

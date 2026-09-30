@@ -45,6 +45,10 @@ o para repetirlas. Solo escucha en tu máquina (127.0.0.1).
 - **Salidas**: `synth` (sintetizador integrado, por defecto), `virtual` (puerto "JEVjam":
   canal 10 batería, 1 bajo, 2 teclado), `both`, o el nombre de un puerto MIDI existente.
 - Usa **auriculares** con `--input mic`: si el micro oye a la banda, se escucha a sí misma.
+- La banda piensa en **frases** (4 compases por defecto, `--phrase` o selector en la app):
+  cada músico mantiene su papel toda la frase y todos cambian a la vez al empezar la
+  siguiente, con un redoble antes. Solo un cambio de sección muy claro se adelanta. La
+  intensidad sigue tu volumen compás a compás, sin saltos.
 - La batería entra enseguida. Bajo y teclado anticipan tus acordes cuando la progresión se
   repite; mientras no la conocen, a partir del compás 4 siguen el último acorde oído (un
   compás tarde) o, si no oyen acordes claros y usas `--key`, sostienen la tónica.
@@ -88,6 +92,7 @@ energía de la banda y tu volumen/densidad (¿te sigue?).
 | `jevjam/context.py` | medidas → contexto en palabras para Jev |
 | `jevjam/brain.py` | preguntas a Jev (fan-out de 7 por compás) y cliente asíncrono con plazo |
 | `jevjam/keyfinder.py` | tonalidad en tiempo real a partir de los acordes reconocidos |
+| `jevjam/phrasing.py` | fraseo: los papeles cambian por frases (2/4/8/16 compases), energía gradual |
 | `jevjam/conductor.py` | reloj musical, pulso 1, predicción de progresión, plazos e histéresis |
 | `jevjam/band.py` | batería, bajo y teclado: papel → notas MIDI deterministas |
 | `jevjam/midi_out.py` | planificador MIDI preciso y destinos (puerto virtual, puerto existente) |

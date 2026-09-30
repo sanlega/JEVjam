@@ -115,7 +115,7 @@ def _conductor(fixed_key=None, bar_chords=()):
     from jevjam.conductor import Beat, Conductor
 
     c = Conductor.__new__(Conductor)
-    c.bpb, c._last_harmony = 4, None
+    c.bpb, c._last_harmony, c._ever_known = 4, None, False
     c.analyzer = Analyzer(fixed_key=fixed_key)
     from jevjam.keyfinder import KeyTracker
 
@@ -146,3 +146,16 @@ def test_harmony_follows_last_heard_chord_after_patience():
 def test_harmony_prefers_prediction():
     h, mode = _conductor(bar_chords=["C", "F", "G", "Am"] * 2)._harmony(bar=8)
     assert mode == "predicted" and theory.chord_name(h.root, h.quality) == "C"
+
+
+def test_harmony_does_not_drop_out_after_an_unclear_bar():
+    import numpy as np
+
+    from jevjam.analysis import Window
+    from jevjam.conductor import Beat
+
+    c = _conductor(bar_chords=["C", "F", "G", "Am"] * 2)
+    assert c._harmony(bar=8)[1] == "predicted"
+    c.beats = [Beat("N", Window(np.zeros(12), -60.0, 0, 0.6))] * 4  # compases sin acorde claro
+    h, mode = c._harmony(bar=9)
+    assert mode == "following" and theory.chord_name(h.root, h.quality) == "C"  # mantiene el último
