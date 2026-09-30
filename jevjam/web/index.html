@@ -265,6 +265,7 @@ const MODES = {
 const NOTES = ["C","C#","D","Eb","E","F","F#","G","Ab","A","Bb","B"];
 const KEY_ES = { major: "mayor", minor: "menor" };
 const state = { input: "mic", tempo: "auto", keymode: "auto" };
+const PREVIEW = new URLSearchParams(location.search).has("preview");
 let running = false;
 
 // ------------------------------------------------------------ preferencias
@@ -528,6 +529,7 @@ requestAnimationFrame(vuFrame);
 // Probar el micro sin jam: el servidor lo abre solo mientras esta pestaña lo pida.
 let monitorOn = false;
 async function updateMonitor() {
+  if (PREVIEW) return;
   const want = !running && state.input === "mic" && document.visibilityState === "visible" && $("device").value !== "";
   try {
     if (want) {
@@ -552,8 +554,55 @@ for (const id of ["progression","demo_bpm","bpm","tonic","mode","bars","phrase_b
 for (const id of ["hear_input","record"]) if (saved[id] !== undefined) $(id).checked = saved[id];
 $("bpmVal").textContent = $("bpm").value; $("demoBpmVal").textContent = $("demo_bpm").value;
 setSeg("input", saved.input || "mic"); setSeg("tempo", saved.tempo || "auto"); setSeg("keymode", saved.keymode || "auto");
-loadOptions().catch(e => setStatus("error", "no puedo hablar con la app: " + e.message));
-connect();
+if (PREVIEW) startPreview();
+else {
+  loadOptions().catch(e => setStatus("error", "no puedo hablar con la app: " + e.message));
+  connect();
+}
+
+// ------------------------------------------------------------ vista previa
+// index.html?preview: la interfaz con un estado de ejemplo, sin servidor ni micro (capturas
+// para la documentación y para iterar el diseño). Los datos imitan una jam real.
+function startPreview() {
+  options = { inputs: [{ index: 0, name: "Audio interface", channels: 2, default: true }], midi_outputs: [],
+              api_key: true, running: true, sessions: [
+    { folder: "recordings/session-20260930-172236", started: "2026-09-30 17:22:36", bars: 75, seconds: 186, input: "mic", has_audio: true },
+    { folder: "recordings/session-20260930-163125", started: "2026-09-30 16:31:25", bars: 23, seconds: 61, input: "mic", has_audio: true },
+    { folder: "recordings/session-20260930-150910", started: "2026-09-30 15:09:10", bars: 22, seconds: 57, input: "mic", has_audio: true },
+    { folder: "recordings/session-20260930-145800", started: "2026-09-30 14:58:00", bars: 20, seconds: 55, input: "demo", has_audio: true },
+  ] };
+  $("keyPill").textContent = "Jev conectado"; $("keyPill").className = "pill ok";
+  $("device").innerHTML = ""; $("device").add(new Option("Audio interface (por defecto)", 0));
+  fillChannels();
+  $("out").innerHTML = ""; $("out").add(new Option("Synth integrado (altavoces / auriculares)", "synth"));
+  fillSessions(options.sessions);
+  setSeg("input", "mic"); setSeg("tempo", "fixed"); $("bpm").value = 100; $("bpmVal").textContent = 100;
+  setSeg("keymode", "auto");
+  setRunning(true);
+  setStatus("playing", "tocando");
+  const loop = ["Am", "G", "F", "E"];
+  const phrasing = "plays at the start of each bar and leaves space at the end, inviting an answer";
+  logLine("♪ escuchando a 100 BPM; la banda entra en 1.9 s", "info");
+  for (let bar = 0; bar < 13; bar++) {
+    const heard = bar ? loop[(bar - 1) % 4] : "—", playing = loop[bar % 4];
+    const soft = bar < 8;
+    const b = { bar, bpm: 100, heard, playing, key: "A minor", key_fixed: false, energy: soft ? 2.5 + (bar % 4) * 0.2 : 3.6,
+      parts: soft ? { drums: bar % 4 === 3 ? "fill" : "light_time", bass: "roots_whole", keys: "pads" }
+                  : { drums: bar % 4 === 3 ? "fill" : "groove", bass: "octaves", keys: bar >= 12 ? "answer_phrase" : "comping" },
+      confidence: { drums: 0.82, bass: 0.74, keys: 0.61 }, latency_ms: 240 + (bar * 37) % 90, reused: false,
+      harmony_mode: bar < 4 ? "anticipated" : "predicted", progression: bar < 4 ? "andaluza (i-VII-VI-V)" : null,
+      plan: [0, 1, 2, 3].map(k => loop[(bar + k) % 4]), sync_ms: 6 + (bar % 3) * 3, phrasing: bar > 2 ? phrasing : "",
+      phrase_pos: bar % 4, phrase_bars: 4, changed: bar % 4 === 0 && bar > 0 };
+    if (b.changed) logLine(`↻ frase nueva → drums: ${b.parts.drums}, bass: ${b.parts.bass}, keys: ${b.parts.keys}`, "info");
+    onBar(b);
+  }
+  let t = 0;  // vúmetro: rasgueo en el pulso 1 que se va apagando, como una guitarra
+  setInterval(() => {
+    t += 0.05;
+    const phase = (t % 0.6) / 0.6, db = -14 - 18 * phase + 2 * Math.sin(t * 7);
+    onLevel({ rms_db: db, peak_db: db + 7 });
+  }, 50);
+}
 </script>
 </body>
 </html>

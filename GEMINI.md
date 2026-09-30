@@ -80,7 +80,8 @@ Detalle y mediciones: `docs/ARCHITECTURE.md`. Flujo: audio → `analysis.py` (Sn
 - El estado para Jev va en palabras/categorías, nunca números crudos ni listas largas.
 - No pedir a Jev "mantén lo anterior" en las preguntas (se ancla); la continuidad es histéresis en código.
 - Los generadores de `band.py` son deterministas por compás (semilla) y se testean sin red.
-- Código y comentarios en español; identificadores y preguntas a Jev en inglés.
+- Código, comentarios y docs/ en español; identificadores, preguntas a Jev y README.md en inglés.
+- Capturas de la interfaz: `index.html?preview` (estado de ejemplo, sin servidor) → docs/img/.
 
 # Comandos
 
