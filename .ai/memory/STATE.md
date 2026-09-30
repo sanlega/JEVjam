@@ -3,6 +3,7 @@
 _Última actualización: 2026-09-30 por claude_
 
 ## En curso
+- Croma de magnitud (no energía): el E de guitarra con Mi grave fuerte no se reconocía (0/5 → 5/5); jam F-E-Am-G 22/22, tonalidad estable. Contador de bloques de audio perdidos con aviso. 72 tests.
 - Fraseo (phrasing.py): papeles por frases de 2/4/8/16 compases (app/--phrase), todos a la vez, votos de Jev acumulados con histéresis 0,2, excepción por cambio de sección claro (≥0,85), redoble como adorno, energía ±0,5/compás. Jam real: 3 cambios en 28 compases (antes ~18). 71 tests.
 - Vúmetro de entrada en la app (RMS/pico ~20 Hz por SSE; LevelMeter en analysis.py) y monitor de micro previo a la jam (/api/monitor, se apaga solo a los 30 s sin ping). 58 tests.
 - App local (`python -m jevjam.app`): servidor stdlib + SSE en 127.0.0.1:8765, página única con todas las opciones, botón rojo, directo y sesiones/revisión. session.py compartido por CLI y app. 57 tests.

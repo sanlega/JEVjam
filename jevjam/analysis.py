@@ -151,9 +151,14 @@ class Analyzer:
             self._mark_beat_chord(t)
 
     def _chroma(self, mag: np.ndarray) -> np.ndarray:
-        """Croma de energía por clase de altura (los armónicos se modelan en las plantillas)."""
+        """Croma por clase de altura con la magnitud (no la energía); los armónicos van en las plantillas.
+
+        Con energía (magnitud²) una nota grave fuerte tapaba al resto: en un E de guitarra la
+        cuerda de Mi grave dejaba el G# (la tercera) en un 2 % y el acorde no se reconocía
+        (jam real 2026-09-30 16:31: E en 0/5 compases; con magnitud, 5/5).
+        """
         sel = self._note_of_bin >= 0
-        notes = np.bincount(self._note_of_bin[sel], weights=mag[sel] ** 2, minlength=self._n_notes)
+        notes = np.bincount(self._note_of_bin[sel], weights=mag[sel], minlength=self._n_notes)
         chroma = np.zeros(12)
         np.add.at(chroma, (np.arange(self._n_notes) + self._note_lo) % 12, notes)
         return chroma

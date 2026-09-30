@@ -94,7 +94,7 @@ class Conductor:
         self._level = LevelMeter(sr)
         self.decision: Decision | None = None
         self.stats = {"bars": 0, "jev_on_time": 0, "jev_late": 0, "jev_errors": 0, "latencies_ms": [],
-                      "bar_starts": []}
+                      "bar_starts": [], "audio_dropped": 0}
         self._audio_q: queue.Queue = queue.Queue(maxsize=4000)
         self._an_anchor = (time.monotonic(), 0.0)  # (monotónico, tiempo del analizador) del último bloque
         self._stop = threading.Event()
@@ -115,7 +115,7 @@ class Conductor:
         try:
             self._audio_q.put_nowait((time.monotonic(), block))
         except queue.Full:
-            pass
+            self.stats["audio_dropped"] += 1  # el análisis no da abasto
 
     def _analysis_loop(self) -> None:
         while not self._stop.is_set():

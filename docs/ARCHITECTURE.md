@@ -142,7 +142,7 @@ Todo numpy, hop de 512 muestras (10,7 ms), FFT de 4096; ~110× más rápido que 
 | Tempo | autocorrelación de la envolvente de onsets (8 s), prior log‑normal en 110 BPM, pico parabólico | ±0,1 BPM en 84‑150 BPM |
 | Fase de pulso | media circular de la fase de los onsets | bajo ±30 ms/compás de corrección |
 | Pulso 1 | posición dominante de los cambios de acorde | alinea en 2‑3 compases |
-| Acorde | croma de energía (38 Hz‑2,1 kHz) vs plantillas con **serie armónica** modelada; penaliza séptimas | 56/56 en 7 progresiones sintéticas |
+| Acorde | croma de **magnitud** (38 Hz‑2,1 kHz) vs plantillas con **serie armónica** modelada; penaliza séptimas | 56/56 sintéticas; jam real F‑E‑Am‑G 22/22 (con croma de energía, el E de guitarra salía 0/5) |
 | Tonalidad | **rastreador por acordes** (`keyfinder.py`): encaje diatónico + presencia de la tónica + perfil de croma, con histéresis; o fija con `--key` | 11/11 progresiones; sigue modulaciones en 3‑5 compases; jam real C‑G‑F‑G: C mayor (solo croma: G mayor) |
 | Dinámica / tendencia / densidad / silencio | RMS en dB, 2 s vs 6 s previos, onsets/pulso | — |
 
@@ -253,6 +253,16 @@ tonalidad se deduce de ellos: qué tonalidad contiene los acordes (el F natural 
 mayor), cuál tiene su acorde de tónica presente y al abrir frase (C mayor frente a La
 menor), y el perfil de croma como desempate. Memoria con olvido 0,8 por compás y cambio
 solo si otra tonalidad gana 2 compases seguidos.
+
+### El E que no se oía (jam 2026-09-30 16:31)
+
+"Pierde la entrada": el audio no tenía cortes (un solo hueco de 10 ms); lo que se perdía
+era la armonía. En F‑E‑Am‑G el E salía "sin acorde" 5 de 5 veces: con croma de energía
+(magnitud²) la cuerda de Mi grave dominaba y el G# quedaba en un 2 %. Sin el E no se
+aprendía la progresión y la tonalidad saltaba entre F, C y La menor. Con croma de
+magnitud: E 5/5, 22/22 acordes, La menor estable y 14/14 acordes de la banda en modo
+predicho. Además se cuentan los bloques de audio perdidos (overflow del dispositivo o
+análisis saturado) y se avisa al terminar.
 
 ### Fraseo (`phrasing.py`)
 

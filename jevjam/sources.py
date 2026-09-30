@@ -19,10 +19,13 @@ class MicInput:
 
         self.channel = channel
         self._on_block = on_block
+        self.overflows = 0  # bloques que el sistema de audio no pudo entregar a tiempo
         self.stream = sd.InputStream(samplerate=sr, blocksize=blocksize, channels=channel + 1, dtype="float32",
                                      latency="low", device=device, callback=self._cb)
 
     def _cb(self, indata, frames, _time, status) -> None:
+        if status and status.input_overflow:
+            self.overflows += 1
         self._on_block(indata[:, self.channel].copy())
 
     def start(self) -> None:

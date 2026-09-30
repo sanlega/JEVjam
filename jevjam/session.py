@@ -158,6 +158,8 @@ class Session:
         s = conductor.stats
         lat = s["latencies_ms"]
         summary: dict = {"bars": s["bars"], "warnings": [], "error": error}
+        lost = s.get("audio_dropped", 0) + getattr(source, "overflows", 0)
+        s["input_overflows"] = getattr(source, "overflows", 0)
         if lat:
             summary["jev"] = {"on_time": s["jev_on_time"], "late": s["jev_late"], "errors": s["jev_errors"],
                               "median_ms": round(statistics.median(lat)), "max_ms": round(max(lat)),
@@ -172,6 +174,10 @@ class Session:
 
                 first_bar = recorder.rel(s["bar_starts"][0]) - 4 * 60 / (cfg.bpm or 100)
                 summary["warnings"] = quality_advice(input_quality(self.folder, max(0.0, first_bar)))
+        if lost:
+            summary["warnings"].append(
+                f"se perdieron {lost} bloques de audio de la entrada (el ordenador no llegó a tiempo); "
+                f"si se repite, cierra otras apps de audio o sube el tamaño de bloque")
         emit("summary", summary)
         emit("status", {"state": "error" if error else "done", "text": error or "terminado"})
         return summary

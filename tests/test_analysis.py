@@ -131,3 +131,19 @@ def test_level_meter_reports_rms_and_peak_every_interval():
     assert level["rms_db"] == pytest.approx(-9.0, abs=0.2)   # seno: pico - 3 dB
     silent = m.feed(np.zeros(2400, dtype=np.float32))
     assert silent["rms_db"] < -100
+
+
+def test_guitar_e_major_with_loud_low_string_is_recognized():
+    # Regresión (jam real 2026-09-30 16:31): con croma de energía, la cuerda de Mi grave tapaba
+    # al G# y el E salía como "sin acorde" en 5/5 compases.
+    import numpy as np
+
+    t = np.arange(int(SR * 2.4)) / SR
+    voicing = {40: 3.0, 47: 1.0, 52: 1.0, 56: 0.35, 59: 0.8, 64: 0.7}  # E2 B2 E3 G#3 B3 E4
+    audio = sum(a * np.exp(-t * 1.5) * sum(np.sin(2 * np.pi * theory.midi_to_hz(n) * h * t) / h ** 1.5
+                                           for h in (1, 2, 3, 4))
+                for n, a in voicing.items())
+    an = Analyzer(sr=SR)
+    an.feed((0.05 * audio).astype(np.float32))
+    ch = an.chord_of(an.take_window().chroma)
+    assert ch and theory.chord_name(*ch[:2]) == "E"
