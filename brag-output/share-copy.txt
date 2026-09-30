@@ -1,0 +1,1 @@
+Nobody wanted to jam with me, so I built a band that has to. JEVjam listens to your guitar and an AI drummer, bassist and keys player jam along live over MIDI (they come in on beat 2 sometimes, like real musicians who don't know the changes). Every note in this video's soundtrack was played by JEVjam's own band and synth. github.com/sanlega/JEVjam
