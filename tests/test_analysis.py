@@ -147,3 +147,30 @@ def test_guitar_e_major_with_loud_low_string_is_recognized():
     an.feed((0.05 * audio).astype(np.float32))
     ch = an.chord_of(an.take_window().chroma)
     assert ch and theory.chord_name(*ch[:2]) == "E"
+
+
+@pytest.mark.parametrize("bars,key,expected,name", [
+    (["F", "E"], (9, "minor"), "Am", "andaluza"),            # jam real 2026-09-30 16:31
+    (["F", "E", "Am"], (9, "minor"), "G", "andaluza"),
+    (["C", "G", "F"], (0, "major"), "G", "I-V-IV-V"),        # jam real 2026-09-30 15:09
+    (["C", "G", "Am"], (0, "major"), "F", "pop"),
+    (["Dm", "G"], (0, "major"), "C", "ii-V-I"),
+    (["F", "N", "Am", "G"], (9, "minor"), "F", "andaluza"),  # un compás sin reconocer no rompe la secuencia
+])
+def test_anticipate_common_progressions(bars, key, expected, name):
+    chord, confidence, progression = theory.anticipate_chord(bars, *key)
+    assert chord == expected and confidence >= 0.6 and name in progression
+
+
+def test_anticipation_is_humble_when_ambiguous():
+    chord, confidence, _ = theory.anticipate_chord(["C", "G"], 0, "major")
+    assert confidence < 0.6  # I-V puede seguir de muchas formas: mejor esperar
+
+
+def test_anticipation_follows_slow_harmonic_rhythm():
+    assert theory.anticipate_chord(["C", "C", "G", "G", "Am"], 0, "major")[0] == "Am"  # 2 compases por acorde
+
+
+def test_no_anticipation_without_history():
+    assert theory.anticipate_chord(["C"], 0, "major") is None
+    assert theory.anticipate_chord(["C", "G", "N"], 0, "major") is None

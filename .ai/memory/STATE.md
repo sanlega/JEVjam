@@ -3,6 +3,7 @@
 _Última actualización: 2026-09-30 por claude_
 
 ## En curso
+- Implementados métodos 1-3 de docs/MUSICAL-METHODS.md: anticipación por progresiones habituales (Jev medido 3/10 → no se usa ahí), sincronía fase/periodo (sync.py), pregunta-respuesta por huecos (dialogue.py). Plan de acordes y sincronía en la app. 94 tests.
 - Croma de magnitud (no energía): el E de guitarra con Mi grave fuerte no se reconocía (0/5 → 5/5); jam F-E-Am-G 22/22, tonalidad estable. Contador de bloques de audio perdidos con aviso. 72 tests.
 - Fraseo (phrasing.py): papeles por frases de 2/4/8/16 compases (app/--phrase), todos a la vez, votos de Jev acumulados con histéresis 0,2, excepción por cambio de sección claro (≥0,85), redoble como adorno, energía ±0,5/compás. Jam real: 3 cambios en 28 compases (antes ~18). 71 tests.
 - Vúmetro de entrada en la app (RMS/pico ~20 Hz por SSE; LevelMeter en analysis.py) y monitor de micro previo a la jam (/api/monitor, se apaga solo a los 30 s sin ping). 58 tests.
@@ -19,7 +20,7 @@ _Última actualización: 2026-09-30 por claude_
   12/12 acordes correctos tras aprender la progresión.
 
 ## Próximos pasos
-1. Elegir con el usuario qué método de docs/MUSICAL-METHODS.md implementar (recomendado: anticipar acordes con armonía funcional + Jev; luego corrección de fase/periodo y pregunta-respuesta por huecos).
+1. Tempo automático: confunde el pulso con patrones de rasgueo (137 vs 100 BPM). Proponer tap tempo / cuenta de entrada.
 1. Que el usuario grabe jams reales con la versión nueva y revisarlas con `jevjam.review` (sobre todo tonalidad sin --key: salió F#/C# mayor en varias sesiones; sin audio no se pudo verificar).
 2. Aprender la progresión antes (hoy 2 vueltas ≈ 8 compases) y seguir cambios de acorde a nivel de pulso.
 3. Pulso 1 sin depender de la armonía (acentos/graves o tracker de downbeat).

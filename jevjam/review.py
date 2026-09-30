@@ -238,6 +238,22 @@ def main(argv=None) -> int:
     fmt = lambda r: "—" if r is None else f"{r:+.2f}"
     print(f"· ¿La energía de la banda sigue al humano? correlación con su volumen {fmt(r_loud)}, "
           f"con su densidad {fmt(r_dens)} (1 = sigue perfecto, 0 = no sigue)")
+    # Pregunta y respuesta: ¿las notas de la frase de respuesta caen en huecos del humano?
+    ans_total = ans_in_gap = 0
+    for b in bars:
+        gaps = b["human"].get("gaps") or []
+        if b["band"]["parts_played"].get("keys") == "answer_phrase" and gaps:
+            for beat in b["band"].get("keys_beats", []):
+                ans_total += 1
+                ans_in_gap += bool(beat < len(gaps) and gaps[beat])
+    if ans_total:
+        print(f"· Pregunta y respuesta: {ans_in_gap}/{ans_total} pulsos de respuesta del teclado cayeron en huecos "
+              f"del humano ({100 * ans_in_gap / ans_total:.0f} %)")
+    asyncs = [a for b in bars for a in (b.get("sync") or {}).get("asyncs_ms", [])]
+    if len(asyncs) >= 8:
+        print(f"· Sincronía con el humano: su ataque cae a {np.median(asyncs):+.0f} ms del pulso de la banda "
+              f"(dispersión {np.std(asyncs):.0f} ms; entre músicos humanos es típico ±20-30 ms) en "
+              f"{len(asyncs)} pulsos medidos")
     lat = [b["jev"]["decision"]["latency_ms"] for b in bars if not b["jev"]["decision"]["reused"]]
     reused = sum(b["jev"]["decision"]["reused"] for b in bars)
     if lat:

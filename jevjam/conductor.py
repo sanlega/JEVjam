@@ -31,9 +31,11 @@ from .analysis import Analyzer, LevelMeter, Snapshot, Window
 from .band import Band, Harmony
 from .brain import AGENT_OPTIONS, Decision, DecisionWorker
 from .context import BandMemory, build_state
+from .dialogue import GapProfile, answer_register
 from .keyfinder import KeyTracker
 from .midi_out import Scheduler
 from .phrasing import Plan, PhrasePlanner
+from .sync import BeatSync, SyncResult
 
 HARMONIC_AGENTS = ("bass", "keys")
 _CHORDS = {theory.chord_name(r, q): (r, q) for q in theory.CHORD_QUALITIES for r in range(12)}
@@ -77,7 +79,7 @@ class Conductor:
                  beats_per_bar: int = 4, fixed_bpm: float | None = None, input_latency_s: float = 0.0,
                  min_confidence: float = 0.25, verbose: bool = True,
                  fixed_key: tuple[int, str] | None = None, recorder=None, on_bar=None, on_message=None,
-                 on_level=None, phrase_bars: int = 4):
+                 on_level=None, phrase_bars: int = 4, output_latency_s: float = 0.0):
         self.worker, self.scheduler = worker, scheduler
         self.analyzer = Analyzer(sr=sr, fixed_key=fixed_key)
         self.band = Band()
@@ -105,8 +107,16 @@ class Conductor:
         # Los papeles cambian por frases (ver phrasing.py), no compás a compás.
         self.planner = PhrasePlanner(phrase_bars=phrase_bars)
         self.memory.phrase_len = phrase_bars
+        # Sincronía por corrección de fase/periodo (sync.py); con tempo fijo solo corrige la fase.
+        self.sync = BeatSync(follow_tempo=not fixed_bpm)
+        self.output_latency_s = output_latency_s  # lo que tarda en oírse la banda (el humano la sigue a ella)
+        self.last_sync = SyncResult()
+        self.gaps = GapProfile(beats_per_bar)  # huecos y registro del humano (pregunta y respuesta)
+        self._last_gaps: list[bool] = []
         self._harmonic_ok = False  # bajo y teclado pueden tocar (se decide al empezar cada grupo de 4)
         self._ever_known = False  # ya hemos tocado con armonía conocida alguna vez
+        self.anticipation_threshold = 0.6  # confianza mínima para tocar un acorde reconocido por progresión
+        self.progression_name: str | None = None
         threading.Thread(target=self._analysis_loop, daemon=True, name="analysis").start()
 
     # ----------------------------------------------------------- audio → análisis
@@ -218,8 +228,10 @@ class Conductor:
             parts = dict(plan.parts)
             if not self._harmonic_ok:
                 parts.update({a: "tacet" for a in HARMONIC_AGENTS if a in parts})
-            events = self.band.render_bar(bar, parts, plan.energy, harmony, None,
-                                          self.bpb, decision.leave_space > 0.6) if parts else []
+            answer_beats = self.gaps.answer_beats() if len(self.gaps.bars) >= 2 else None
+            register_range = answer_register(self.gaps.register())
+            events = self.band.render_bar(bar, parts, plan.energy, harmony, None, self.bpb,
+                                          decision.leave_space > 0.6, answer_beats, register_range) if parts else []
             for e in events:
                 self.scheduler.note(bar_start + e.beat * beat, e.dur * beat, e.channel, e.note, e.velocity)
             self.memory.record(parts)
@@ -250,13 +262,17 @@ class Conductor:
             self.beats = self.beats[-64:]  # múltiplo del compás: se mantiene la alineación
             heard = self.beats[-self.bpb:]
             self.memory.record_input(_loudness(heard), sum(b.window.onsets for b in heard) / self.bpb)
+            self._last_gaps = self.gaps.add_bar([b.window for b in heard])
+            self.memory.phrasing = self.gaps.phrasing_words()
+            self.memory.last_bar_phrasing = self.gaps.last_bar_words()
             if self.key_tracker:
                 bar_chroma = sum(b.window.chroma for b in heard)
                 bc = self.analyzer.chord_of(bar_chroma)
                 self.key_tracker.update(theory.chord_name(*bc[:2]) if bc else "N", bar_chroma)
-            self._record_bar(bar, bar_start, bpm, harmony, mode, parts, decision, events, heard, plan)
             # 4) Seguimos al humano: tempo y fase se corrigen poco a poco, nunca de golpe.
-            bpm, bar_start = self._follow(self.analyzer.snapshot(), bpm, bar_start + self.bpb * beat)
+            next_bpm, next_start = self._follow(bpm, bar_start, beat)
+            self._record_bar(bar, bar_start, bpm, harmony, mode, parts, decision, events, heard, plan)
+            bpm, bar_start = next_bpm, next_start
             # 5) Pulso 1: si los cambios de acorde caen siempre en otro pulso, nos desplazamos.
             shift = self._downbeat_shift()
             if shift:
@@ -310,10 +326,12 @@ class Conductor:
 
     # Modos armónicos, de más a menos fiable:
     #   predicted  la progresión se repite y anticipamos el acorde del próximo compás
+    #   anticipated  aún no se ha repetido, pero encaja con una progresión habitual (theory)
     #   following  seguimos el último acorde oído (va un compás tarde si el humano cambia)
     #   tonic      no oímos acordes claros pero la tonalidad es fija: sostenemos la tónica
     #   waiting    aún no sabemos nada: bajo y teclado esperan
-    HARMONY_LABELS = {"predicted": "", "following": " · sigo el último acorde oído",
+    HARMONY_LABELS = {"predicted": "", "anticipated": " · reconozco la progresión",
+                      "following": " · sigo el último acorde oído",
                       "tonic": " · sin acordes claros: sostengo la tónica", "waiting": " · aprendiendo la progresión"}
 
     def _harmony(self, bar: int, patience_bars: int = 4) -> tuple[Harmony, str]:
@@ -323,8 +341,16 @@ class Conductor:
         key = key if key and key[2] > 0.3 else (0, "major", 0.0)
         bars = self.bar_chords()
         predicted = predict_next_chord(bars)
+        anticipated = None
+        if not predicted and (self.analyzer.fixed_key or key[2] >= 0.5):
+            anticipated = theory.anticipate_chord(bars, key[0], key[1])
+            if anticipated and anticipated[1] < self.anticipation_threshold:
+                anticipated = None
+        self.progression_name = anticipated[2] if anticipated else None
         if predicted:
             mode, (root, quality) = "predicted", _CHORDS[predicted]
+        elif anticipated:
+            mode, (root, quality) = "anticipated", _CHORDS[anticipated[0]]
         elif bar >= patience_bars and bars and bars[-1] != "N":
             mode, (root, quality) = "following", _CHORDS[bars[-1]]
         elif bar >= patience_bars and self.analyzer.fixed_key:
@@ -342,21 +368,24 @@ class Conductor:
         self._ever_known = self._ever_known or mode != "waiting"
         return h, mode
 
-    def _follow(self, snap: Snapshot, bpm: float, next_bar: float) -> tuple[float, float]:
-        if self.fixed_bpm:
-            new_bpm = self.fixed_bpm
-        elif snap.bpm and snap.tempo_confidence > 0.2:
-            ratio = snap.bpm / bpm
-            # Ignoramos saltos de octava de tempo (doble/mitad); seguimos derivas suaves.
-            new_bpm = bpm + (snap.bpm - bpm) * 0.25 if 0.85 < ratio < 1.15 else bpm
-        else:
-            new_bpm = bpm
-        if snap.beat_phase_time is not None:
-            beat = 60 / bpm
-            human_beat = self._mono(snap.beat_phase_time)
-            err = ((next_bar - human_beat + beat / 2) % beat) - beat / 2  # >0: vamos tarde
-            next_bar -= float(np.clip(err * 0.3, -0.03, 0.03))
-        return new_bpm, next_bar
+    def _follow(self, bpm: float, bar_start: float, beat: float) -> tuple[float, float]:
+        """Tempo y pulso 1 del próximo compás a partir de la asincronía con el humano en este."""
+        beats = [bar_start + i * beat for i in range(self.bpb)]
+        mono_now, an_now = self._an_anchor
+        to_an = lambda t: an_now - (mono_now - t)  # monotónico → tiempo del analizador
+        onsets = [self._mono(t) - self.output_latency_s
+                  for t in self.analyzer.onsets_between(to_an(beats[0] - beat / 2), to_an(beats[-1] + beat / 2))]
+        r = self.last_sync = self.sync.update(beats, onsets, beat)
+        next_bar, period = bar_start + self.bpb * beat + r.phase_shift_s, r.period_s
+        # Re-enganche grueso: si el tempo estimado por autocorrelación difiere mucho (el humano
+        # cambió de tempo de verdad y sus ataques ya caen fuera de la ventana), nos acercamos a él.
+        snap = self.analyzer.snapshot()
+        if not self.fixed_bpm and snap.bpm and snap.tempo_confidence > 0.2:
+            ratio = snap.bpm / (60 / period)
+            if 1.08 < ratio < 1.25 or 0.8 < ratio < 0.92:
+                period = 60 / (60 / period + (snap.bpm - 60 / period) * 0.25)
+                self.sync.base_period = period
+        return (self.fixed_bpm or 60 / period), next_bar
 
     def _sleep_until(self, t: float) -> None:
         while not self._stop.is_set():
@@ -366,6 +395,21 @@ class Conductor:
             time.sleep(min(dt, 0.01))
 
     # ------------------------------------------------------------------ salida
+    def plan_ahead(self, first: str, n: int = 4) -> list[str]:
+        """Los próximos `n` acordes que la banda espera tocar (para enseñarlos, como ReaLJam)."""
+        snap_key = self._key(self.analyzer.snapshot())
+        bars, plan = self.bar_chords() + [first], [first]
+        for _ in range(n - 1):
+            nxt = predict_next_chord(bars)
+            if not nxt and snap_key and (self.analyzer.fixed_key or snap_key[2] >= 0.5):
+                a = theory.anticipate_chord(bars, snap_key[0], snap_key[1])
+                nxt = a[0] if a and a[1] >= self.anticipation_threshold else None
+            if not nxt:
+                break
+            plan.append(nxt)
+            bars.append(nxt)
+        return plan
+
     def _say(self, text: str, level: str = "info") -> None:
         if self.on_message:
             self.on_message(text, level)
@@ -387,7 +431,10 @@ class Conductor:
                          "phrase_pos": plan.phrase_pos, "phrase_bars": plan.phrase_bars,
                          "changed": plan.changed, "change_reason": plan.reason, "fill": plan.fill,
                          "confidence": d.confidence, "latency_ms": round(d.latency_ms),
-                         "reused": d.reused, "harmony_mode": mode,
+                         "reused": d.reused, "harmony_mode": mode, "progression": self.progression_name,
+                         "sync_ms": round(self.last_sync.mean_s * 1000, 1),
+                         "phrasing": self.memory.phrasing, "answer_beats": self.gaps.answer_beats(),
+                         "plan": self.plan_ahead(chord) if known else [],
                          "section_change": round(d.section_change, 2), "leave_space": round(d.leave_space, 2)})
         if not self.verbose:
             return
@@ -417,6 +464,8 @@ class Conductor:
                 "beat_rms_db": [round(b.window.rms_db, 1) for b in heard],
                 "beat_onsets": [b.window.onsets for b in heard],
                 "chroma": (chroma / (chroma.sum() + 1e-12)).round(3),
+                "gaps": self._last_gaps,
+                "register": round(self.gaps.register(), 1) if self.gaps.register() else None,
             },
             "band": {
                 "chord": theory.chord_name(harmony.root, harmony.quality),
@@ -428,7 +477,12 @@ class Conductor:
                 "phrase": {"pos": plan.phrase_pos, "bars": plan.phrase_bars, "changed": plan.changed,
                            "reason": plan.reason, "fill": plan.fill},
                 "notes": dict(Counter({9: "drums", 0: "bass", 1: "keys"}.get(e.channel, e.channel) for e in events)),
+                "keys_beats": sorted({int(e.beat) for e in events if e.channel == 1}),
             },
+            "sync": {"asyncs_ms": [round(a * 1000, 1) for a in self.last_sync.asyncs_s],
+                     "mean_ms": round(self.last_sync.mean_s * 1000, 1),
+                     "phase_shift_ms": round(self.last_sync.phase_shift_s * 1000, 1),
+                     "bpm_next": round(60 / self.last_sync.period_s, 2)},
             "jev": {"state_sent": state, "sent_at_s": rec.rel(sent_at) if sent_at else None,
                     "decision": asdict(decision)},
         })

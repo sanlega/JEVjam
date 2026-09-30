@@ -26,3 +26,12 @@ Consecuencias: depende de reconocer acordes (con melodía sola cae al croma). Si
 Contexto: Jev decide cada compás y oscila; la banda cambiaba de papel cada 1,2-2 compases y el usuario lo percibía como cambios de estructura constantes.
 Decisión (preferencias del usuario): frase configurable (2/4/8/16, por defecto 4); todos los músicos cambian a la vez al empezar frase; votos acumulados con histéresis 0,2; única excepción un cambio de sección claro (section_change >= 0,85); energía gradual compás a compás (±0,5). No se para de golpe si el humano deja de tocar (no lo eligió). El redoble es adorno del último compás.
 Consecuencias: la banda reacciona más despacio a cambios de papel (hasta una frase), pero la intensidad sigue siendo inmediata y gradual.
+
+## D-004 · Anticipar acordes con biblioteca de progresiones, no con Jev
+
+- **Fecha**: 2026-09-30
+
+Contexto: se propuso anticipar el siguiente acorde con armonía funcional + una Choice de Jev.
+Medición: Jev acertó el siguiente acorde 3/10 (elige el primero de la lista o la tónica); el prior funcional 4/10; la fusión 3/10. Es razonamiento secuencial con indirección, fuera del punto fuerte de Jev (doc de jaggedness).
+Decisión: reconocimiento en código de progresiones habituales (grados, rotaciones, comodines, ritmo armónico) con la armonía funcional como desempate; umbral de confianza 0,6. Jev sigue en los juicios musicales por compás.
+Consecuencias: 12/12 cuando actúa en los casos de prueba; con 2 compases ambiguos espera. Progresiones fuera de la biblioteca caen al modo "following" hasta repetirse.

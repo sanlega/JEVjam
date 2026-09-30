@@ -74,6 +74,8 @@ class BandMemory:
     section: int = 1
     phrase_pos: int = 0  # posición en su frase del compás que se va a decidir
     phrase_len: int = 4
+    phrasing: str = "not enough history yet"  # dónde deja huecos el humano (dialogue.py)
+    last_bar_phrasing: str = "unknown"
     # Lo que tocó el humano en cada compás completo (volumen en dB, ataques por pulso).
     bar_rms_db: list[float] = field(default_factory=list)
     bar_onsets_per_beat: list[float] = field(default_factory=list)
@@ -156,6 +158,8 @@ def build_state(snap: Snapshot, memory: BandMemory, beats_per_bar: int = 4) -> d
             "note_density": density_words(snap.onsets_per_second, snap.bpm),
             "note_density_compared_to_this_jam": relative_density(memory.density_series()),
             "playing": "stopped playing" if snap.silence_seconds > 2.0 else "playing",
+            "phrasing": memory.phrasing,
+            "last_bar": memory.last_bar_phrasing,
         },
         "band": {
             "position_in_phrase": phrase_words(memory.phrase_pos, memory.phrase_len),

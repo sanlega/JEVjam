@@ -187,6 +187,18 @@ que es el patrón "select instead of generate" de TypeSafe.
 
 ---
 
+## Estado (2026-09-30): implementados 1, 2 y 3
+
+| # | Qué se hizo | Resultado con jams reales |
+|---|---|---|
+| 1 | `theory.anticipate_chord`: biblioteca de progresiones habituales en grados y en todas sus rotaciones, con comodín para compases sin acorde, ritmo armónico y desempate por armonía funcional; modo `anticipated` y **plan** de 4 acordes en la app. **Jev no se usa aquí**: medido, acertaba el siguiente acorde 3/10 (tiende a elegir el primero o la tónica: es razonamiento secuencial, fuera de su fuerte) | F‑E‑Am‑G: 10/10 acordes desde que la banda entra (antes 4 fallos en los compases 4‑7); C‑G‑F‑G: 11/11 |
+| 2 | `sync.BeatSync`: corrección de fase (α 0,4) y periodo (β 0,1) por compás con la mediana de asincronías; el tempo solo se corrige si ≥ 3/4 pulsos encajan; latencia de salida compensada | con `--bpm`: +10 ms de media y 28‑31 ms de dispersión (rango de músicos humanos); A/B en una jam irregular: de −42 ms a −17 ms |
+| 3 | `dialogue.GapProfile`: huecos por caída de nivel (≥ 15 dB, o ≥ 8 dB sin ataques), patrón por pulso en 4 compases, registro del humano; la respuesta del teclado va en esos pulsos y en otro registro; fraseo en palabras para Jev | Jev eligió responder al empezar frase y el 80 % de las respuestas cayó en los huecos del humano |
+
+Pendiente detectado: la **detección automática de tempo** confunde el pulso con patrones de
+rasgueo (137 BPM en una jam a 100). Con `--bpm` todo funciona; posibles arreglos: tempo por
+toques (tap tempo) o cuenta de entrada, o combinar la autocorrelación con los acentos.
+
 ## Prioridad recomendada
 
 | # | Método | Arregla | Esfuerzo | Jev |

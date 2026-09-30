@@ -92,6 +92,8 @@ energía de la banda y tu volumen/densidad (¿te sigue?).
 | `jevjam/context.py` | medidas → contexto en palabras para Jev |
 | `jevjam/brain.py` | preguntas a Jev (fan-out de 7 por compás) y cliente asíncrono con plazo |
 | `jevjam/keyfinder.py` | tonalidad en tiempo real a partir de los acordes reconocidos |
+| `jevjam/sync.py` | sincronía con el humano: corrección de fase y periodo |
+| `jevjam/dialogue.py` | pregunta y respuesta: huecos y registro del humano |
 | `jevjam/phrasing.py` | fraseo: los papeles cambian por frases (2/4/8/16 compases), energía gradual |
 | `jevjam/conductor.py` | reloj musical, pulso 1, predicción de progresión, plazos e histéresis |
 | `jevjam/band.py` | batería, bajo y teclado: papel → notas MIDI deterministas |

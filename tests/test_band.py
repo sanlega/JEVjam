@@ -116,6 +116,7 @@ def _conductor(fixed_key=None, bar_chords=()):
 
     c = Conductor.__new__(Conductor)
     c.bpb, c._last_harmony, c._ever_known = 4, None, False
+    c.anticipation_threshold, c.progression_name = 0.6, None
     c.analyzer = Analyzer(fixed_key=fixed_key)
     from jevjam.keyfinder import KeyTracker
 

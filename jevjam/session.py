@@ -88,10 +88,13 @@ class Session:
             emit("message", {"text": f"tonalidad fija: {key_name(*fixed_key)}", "level": "info"})
 
         sinks = []
+        output_latency = 0.01  # DAW/puerto MIDI: desconocida, suponemos un búfer típico
         if cfg.out in ("synth", "both"):
             from .synth import Synth
 
-            sinks.append(Synth(sr=cfg.sr))
+            synth = Synth(sr=cfg.sr)
+            sinks.append(synth)
+            output_latency = float(synth.stream.latency)
         if cfg.out in ("virtual", "both"):
             sinks.append(VirtualPort("JEVjam"))
             emit("message", {"text": "MIDI: puerto virtual 'JEVjam' (canal 10 batería, 1 bajo, 2 teclado)",
@@ -115,7 +118,7 @@ class Session:
 
         conductor = self.conductor = Conductor(
             worker, scheduler, sr=cfg.sr, fixed_bpm=cfg.bpm, fixed_key=fixed_key, recorder=recorder,
-            verbose=self.verbose, on_bar=on_bar, phrase_bars=cfg.phrase_bars,
+            verbose=self.verbose, on_bar=on_bar, phrase_bars=cfg.phrase_bars, output_latency_s=output_latency,
             on_message=lambda text, level: emit("message", {"text": text, "level": level}),
             on_level=lambda level: emit("level", level))
         source = None

@@ -44,6 +44,7 @@ class Window:
     rms_db: float
     onsets: int
     seconds: float
+    register: float | None = None  # altura media (MIDI) de lo que suena por encima del bajo
 
 
 @dataclass
@@ -132,7 +133,8 @@ class Analyzer:
         flux = 0.0 if self._prev_mag is None else float(np.maximum(logmag - self._prev_mag, 0).sum())
         self._prev_mag = logmag
 
-        chroma = self._chroma(mag)
+        notes = self._notes(mag)
+        chroma = self._chroma(mag, notes)
         loud = rms_db > self.silence_db
         with self._lock:
             self._flux.append(flux)
@@ -142,6 +144,7 @@ class Analyzer:
             if loud:
                 self._last_loud = t
                 self._win_chroma += chroma
+                self._win_notes += notes
                 c = chroma / (chroma.sum() + 1e-12)
                 self._chroma_fast += (c - self._chroma_fast) * (1 - np.exp(-1 / (0.3 * self.fps)))
                 self._chroma_slow += (c - self._chroma_slow) * (1 - np.exp(-1 / (20 * self.fps)))
@@ -150,15 +153,19 @@ class Analyzer:
                 self._estimate_tempo()
             self._mark_beat_chord(t)
 
-    def _chroma(self, mag: np.ndarray) -> np.ndarray:
+    def _notes(self, mag: np.ndarray) -> np.ndarray:
+        """Magnitud por semitono (nota MIDI desde `_note_lo`)."""
+        sel = self._note_of_bin >= 0
+        return np.bincount(self._note_of_bin[sel], weights=mag[sel], minlength=self._n_notes)
+
+    def _chroma(self, mag: np.ndarray, notes: np.ndarray | None = None) -> np.ndarray:
         """Croma por clase de altura con la magnitud (no la energía); los armónicos van en las plantillas.
 
         Con energía (magnitud²) una nota grave fuerte tapaba al resto: en un E de guitarra la
         cuerda de Mi grave dejaba el G# (la tercera) en un 2 % y el acorde no se reconocía
         (jam real 2026-09-30 16:31: E en 0/5 compases; con magnitud, 5/5).
         """
-        sel = self._note_of_bin >= 0
-        notes = np.bincount(self._note_of_bin[sel], weights=mag[sel], minlength=self._n_notes)
+        notes = self._notes(mag) if notes is None else notes
         chroma = np.zeros(12)
         np.add.at(chroma, (np.arange(self._n_notes) + self._note_lo) % 12, notes)
         return chroma
@@ -176,15 +183,24 @@ class Analyzer:
 
     def _reset_window(self) -> None:
         self._win_chroma = np.zeros(12)
+        self._win_notes = np.zeros(self._n_notes)
         self._win_power = 0.0
         self._win_frames = 0
         self._win_onsets = 0
+
+    def _register(self, above_midi: int = 48) -> float | None:
+        """Altura "central" (MIDI) de lo que suena por encima de C3: dónde toca el humano."""
+        midi = np.arange(self._n_notes) + self._note_lo
+        w = np.where(midi >= above_midi, self._win_notes, 0.0)
+        if w.sum() <= 0:
+            return None
+        return float(np.sum(midi * w) / w.sum())
 
     def take_window(self) -> Window:
         """Devuelve lo acumulado desde la última llamada y empieza una ventana nueva."""
         with self._lock:
             n = max(1, self._win_frames)
-            w = Window(chroma=self._win_chroma.copy(),
+            w = Window(chroma=self._win_chroma.copy(), register=self._register(),
                        rms_db=float(10 * np.log10(self._win_power / n + 1e-24)),
                        onsets=self._win_onsets, seconds=self._win_frames / self.fps)
             self._reset_window()
@@ -255,6 +271,11 @@ class Analyzer:
         offset = (phase % (2 * np.pi)) / (2 * np.pi) * period
         last = self.now - ((self.now - offset) % period)
         return float(last)
+
+    def onsets_between(self, t0: float, t1: float) -> list[float]:
+        """Ataques detectados entre dos instantes (tiempo del analizador)."""
+        with self._lock:
+            return [o for o in self._onset_times if t0 <= o <= t1]
 
     def snapshot(self) -> Snapshot:
         with self._lock:

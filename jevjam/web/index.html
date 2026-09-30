@@ -87,6 +87,11 @@
   .vu .vu-val { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; min-width: 118px; text-align: right; color: var(--muted); }
   .vu .vu-val.bad { color: var(--accent); } .vu .vu-val.low { color: var(--warn); } .vu .vu-val.good { color: var(--ok); }
   .card .vu { margin-top: 12px; }
+  .plan { margin-top: 10px; font-size: 15px; color: var(--muted); }
+  .plan .lbl { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; margin-right: 6px; }
+  .plan #plan { color: var(--text); font-weight: 600; letter-spacing: .02em; }
+  .plan .prog { margin-left: 8px; font-size: 12px; padding: 2px 8px; border-radius: 99px; border: 1px solid var(--line); }
+  .plan .prog:empty { display: none; }
   .band { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
   @media (max-width: 700px) { .band { grid-template-columns: 1fr; } }
   .musician { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
@@ -210,7 +215,9 @@
             <span>compás <b id="barNow">—</b></span>
             <span>frase <b id="phraseNow">—</b></span>
             <span>Jev <b id="lat">—</b></span>
+            <span>sincronía <b id="syncNow">—</b></span>
           </div>
+          <div class="plan"><span class="lbl">plan</span> <span id="plan">—</span> <span id="progName" class="prog"></span></div>
           <div class="meter" id="meter" title="energía que pide Jev (0-5)"></div>
           <div class="vu" data-vu><span class="vu-lbl">entrada</span><div class="vu-bar"><div class="vu-mask"></div><div class="vu-peak"></div></div><span class="vu-val">—</span></div>
         </div>
@@ -251,6 +258,7 @@ const PARTS = {
 };
 const MODES = {
   predicted: "Conoce tu progresión: anticipa el próximo acorde.",
+  anticipated: "Reconoce una progresión habitual y la anticipa (aún no la has repetido entera).",
   following: "Sigue el último acorde que oyó (va un compás detrás hasta aprender la progresión).",
   tonic: "No oye acordes claros: sostiene la tónica.",
   waiting: "Aprendiendo tu progresión: bajo y teclado esperan.",
@@ -406,7 +414,8 @@ function logLine(text, cls = "") {
 }
 function keyEs(k) { if (!k) return "—"; const [t, m] = k.split(" "); return `${t} ${KEY_ES[m] || m}`; }
 function resetLive() {
-  for (const id of ["heard","playing","key","bpmNow","barNow","lat","phraseNow"]) $(id).textContent = "—";
+  for (const id of ["heard","playing","key","bpmNow","barNow","lat","phraseNow","syncNow","plan"]) $(id).textContent = "—";
+  $("progName").textContent = "";
   for (const a of ["drums","bass","keys"]) { $("p-" + a).textContent = "—"; $("p-" + a).className = "part silent"; $("c-" + a).style.width = 0; }
   $("modeText").textContent = ""; $("alerts").innerHTML = ""; $("log").innerHTML = "";
   [...$("meter").children].forEach(i => i.classList.remove("on"));
@@ -426,7 +435,13 @@ function onBar(b) {
     $("p-" + a).className = "part" + (p === "tacet" ? " silent" : "");
     $("c-" + a).style.width = ((b.confidence && b.confidence[a]) || 0) * 100 + "%";
   }
-  $("modeText").textContent = MODES[b.harmony_mode] || "";
+  $("syncNow").textContent = b.sync_ms ? `${b.sync_ms > 0 ? "+" : ""}${Math.round(b.sync_ms)} ms` : "—";
+  $("plan").textContent = (b.plan && b.plan.length) ? b.plan.join(" → ") : "—";
+  $("progName").textContent = b.progression || "";
+  const phr = { "not enough history yet": "", "playing continuously, without leaving gaps": "Tocas sin pausas: el teclado se queda atrás.",
+    "plays at the start of each bar and leaves space at the end, inviting an answer": "Dejas espacio al final del compás: el teclado puede responder ahí.",
+    "leaves gaps on some beats of each bar": "Dejas huecos en algunos pulsos.", "mostly silent, leaving the whole bar empty": "Estás dejando compases vacíos." };
+  $("modeText").textContent = [MODES[b.harmony_mode] || "", phr[b.phrasing] || ""].filter(Boolean).join(" ");
   const part = (a) => PARTS[a][b.parts[a] || "tacet"] || b.parts[a];
   logLine(`${String(b.bar + 1).padStart(3)} ${b.phrase_pos + 1}/${b.phrase_bars} · oigo ${b.heard.padEnd(5)} → toco ${b.playing.padEnd(5)} · ` +
           `energía ${b.energy.toFixed(1)} · ${part("drums")}/${part("bass")}/${part("keys")}`, b.changed ? "info" : "");

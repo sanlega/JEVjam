@@ -122,7 +122,8 @@ class Keys:
         self.prev_voicing: list[int] | None = None
 
     def play(self, part: str, h: Harmony, energy: float, bpb: int, rng: random.Random,
-             leave_space: bool) -> list[NoteEvent]:
+             leave_space: bool, answer_beats: list[int] | None = None,
+             register_range: tuple[int, int] = (67, 84)) -> list[NoteEvent]:
         pcs = theory.chord_pcs(h.root, h.quality)
         voicing = theory.nearest_voicing(pcs, self.prev_voicing)
         self.prev_voicing = voicing
@@ -142,21 +143,31 @@ class Keys:
             for i in range(bpb * 2):
                 add(i / 2, seq[i % len(seq)], 0.45, 80)
         elif part == "answer_phrase":
-            # Frase corta en la escala, anclada en notas del acorde, en la segunda mitad del compás
-            # (la primera mitad es del humano: pregunta y respuesta).
+            # Pregunta y respuesta: la frase va en los pulsos donde el humano suele dejar hueco y
+            # en un registro distinto al suyo. Sin huecos, el teclado se queda atrás (una nota
+            # larga y suave); sin historial todavía, en la segunda mitad del compás.
             scale = theory.scale_pcs(h.key_tonic, h.key_mode)
-            pool = sorted(n for n in range(67, 84) if n % 12 in scale)
+            lo, hi = register_range
+            pool = sorted(n for n in range(lo, hi + 1) if n % 12 in scale)
             chord_notes = [n for n in pool if n % 12 in pcs]
-            start = bpb / 2
+            if answer_beats is None:
+                slots = [bpb / 2 + i / 2 for i in range(bpb)]
+            else:
+                slots = [b + half for b in sorted(answer_beats) for half in (0.0, 0.5) if b < bpb]
+            if not slots:
+                note = min(chord_notes or pool, key=lambda x: abs(x - (lo + hi) / 2))
+                add(0, note, bpb - 0.1, 55)
+                return ev
             n = rng.choice(chord_notes or pool)
-            for i in range(int(bpb / 2 * 2)):
-                b = start + i / 2
+            for b in slots:
                 if rng.random() < 0.8:
                     add(b, n, 0.45, 95)
                 idx = pool.index(n) + rng.choice([-2, -1, 1, 1, 2])
                 n = pool[max(0, min(len(pool) - 1, idx))]
-            last = min(chord_notes or pool, key=lambda x: abs(x - n))
-            ev[-1:] = [NoteEvent(ev[-1].beat, 0.9, KEYS_CH, last, ev[-1].velocity)] if ev else []
+            if ev:
+                last = min(chord_notes or pool, key=lambda x: abs(x - n))
+                end = min(bpb - ev[-1].beat - 0.05, 0.9)
+                ev[-1] = NoteEvent(ev[-1].beat, max(0.2, end), KEYS_CH, last, ev[-1].velocity)
         return ev
 
 
@@ -166,11 +177,13 @@ class Band:
         self.seed = seed
 
     def render_bar(self, bar: int, parts: dict[str, str], energy: float, harmony: Harmony,
-                   next_root: int | None, bpb: int, leave_space: bool) -> list[NoteEvent]:
+                   next_root: int | None, bpb: int, leave_space: bool, answer_beats: list[int] | None = None,
+                   register_range: tuple[int, int] = (67, 84)) -> list[NoteEvent]:
         rng = random.Random(self.seed * 100003 + bar)
         if energy < 0.5:
             return []
         ev = drums(parts.get("drums", "tacet"), energy, bpb, rng)
         ev += bass(parts.get("bass", "tacet"), harmony, next_root, energy, bpb, rng)
-        ev += self.keys.play(parts.get("keys", "tacet"), harmony, energy, bpb, rng, leave_space)
+        ev += self.keys.play(parts.get("keys", "tacet"), harmony, energy, bpb, rng, leave_space,
+                             answer_beats, register_range)
         return ev
