@@ -3,6 +3,7 @@
 _Última actualización: 2026-09-30 por claude_
 
 ## En curso
+- App local (`python -m jevjam.app`): servidor stdlib + SSE en 127.0.0.1:8765, página única con todas las opciones, botón rojo, directo y sesiones/revisión. session.py compartido por CLI y app. 57 tests.
 - Tonalidad sin --key: KeyTracker por acordes (keyfinder.py). 11/11 progresiones, modulaciones en 3-5 compases; jam real 15:09 → C mayor (el croma decía G). 48 tests. Repo en github.com/sanlega/JEVjam (main).
 - Jam real 15:09 con el micro correcto (--key C, C-G-F-G): 21/21 acordes reconocidos, banda 13/13 correcta en modo predicho (los 4 fallos, en modo following, 1 compás tarde como se espera), energía-volumen +0,70, sin eco. La prueba anterior falló por usar otro micro.
 - Jam real 15:02 (--key C): solo batería. Causa: captación (eco de la banda por altavoces a 60 ms + entrada sin notas con altura, planitud 0,6). Añadidos: modos armónicos de respaldo (following/tonic) y diagnóstico de entrada. 33 tests.

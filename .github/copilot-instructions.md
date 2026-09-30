@@ -85,6 +85,7 @@ Detalle y mediciones: `docs/ARCHITECTURE.md`. Flujo: audio → `analysis.py` (Sn
 # Comandos
 
 ```sh
+.venv/bin/python -m jevjam.app                              # app en el navegador (127.0.0.1:8765)
 python3 -m venv .venv && .venv/bin/pip install -e '.[dev]'   # instalar
 .venv/bin/python -m pytest                                   # tests (sin red)
 .venv/bin/python -m jevjam --input demo --mute-demo --out virtual --bars 8   # e2e con Jev real, sin sonido

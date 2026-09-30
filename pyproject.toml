@@ -24,3 +24,10 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
 packages = ["jevjam"]
+
+[tool.setuptools.package-data]
+jevjam = ["web/*.html"]
+
+[project.scripts]
+jevjam = "jevjam.__main__:main"
+jevjam-app = "jevjam.app:main"

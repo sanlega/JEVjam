@@ -1,0 +1,456 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>JEVjam</title>
+<style>
+  :root {
+    --bg: #0f1115; --panel: #171a21; --panel-2: #1e222b; --line: #2a2f3a;
+    --text: #e8eaf0; --muted: #8b93a5; --accent: #e5484d; --accent-2: #ff6b6f;
+    --ok: #3fb97f; --warn: #f5a524; --info: #6ea8fe; --radius: 14px;
+    color-scheme: dark;
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg: #f4f5f8; --panel: #ffffff; --panel-2: #f0f2f6; --line: #dfe3ea;
+      --text: #161a22; --muted: #5f6878; color-scheme: light;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Inter, Roboto, sans-serif; }
+  header { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 12px; padding: 16px 24px; border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font-size: 20px; letter-spacing: .5px; }
+  header h1 span { color: var(--accent); }
+  header .sub { color: var(--muted); font-size: 13px; }
+  .pill { margin-left: auto; font-size: 12px; padding: 4px 10px; border-radius: 99px; border: 1px solid var(--line); color: var(--muted); }
+  .pill.ok { color: var(--ok); border-color: color-mix(in srgb, var(--ok) 40%, transparent); }
+  .pill.bad { color: var(--accent); border-color: color-mix(in srgb, var(--accent) 40%, transparent); }
+  main { display: grid; grid-template-columns: 360px 1fr; gap: 20px; padding: 20px 24px 40px; max-width: 1400px; margin: 0 auto; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 16px; } header { padding: 14px 16px; } }
+  main > section, .card, .grid2 > * { min-width: 0; }
+  .card { background: var(--panel); border: 1px solid var(--line); border-radius: var(--radius); padding: 16px; }
+  .card + .card { margin-top: 14px; }
+  .card h2 { margin: 0 0 12px; font-size: 13px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); font-weight: 600; }
+  label.field { display: block; margin: 10px 0 4px; font-size: 13px; color: var(--muted); }
+  select, input[type=text], input[type=number] {
+    width: 100%; padding: 9px 10px; border-radius: 10px; border: 1px solid var(--line);
+    background: var(--panel-2); color: var(--text); font: inherit; }
+  select:disabled, input:disabled { opacity: .5; }
+  .row { display: flex; gap: 8px; }
+  .row > * { flex: 1; }
+  .seg { display: flex; background: var(--panel-2); border: 1px solid var(--line); border-radius: 10px; padding: 3px; gap: 3px; }
+  .seg button { flex: 1; border: 0; background: transparent; color: var(--muted); padding: 7px 6px; border-radius: 8px; font: inherit; font-size: 13px; cursor: pointer; }
+  .seg button.on { background: var(--panel); color: var(--text); box-shadow: 0 1px 2px rgba(0,0,0,.25); }
+  .check { display: flex; align-items: center; gap: 8px; margin-top: 10px; font-size: 14px; }
+  .hint { color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .hidden { display: none !important; }
+  input[type=range] { width: 100%; accent-color: var(--accent); }
+
+  /* Escenario */
+  .stage { display: grid; grid-template-columns: auto 1fr; gap: 28px; align-items: center; }
+  @media (max-width: 700px) {
+    .stage { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+    .now, .facts, .status { justify-content: center; }
+    .big-btn { width: 160px; height: 160px; }
+  }
+  .big-btn { width: 190px; height: 190px; border-radius: 50%; border: 0; cursor: pointer; color: #fff;
+    background: radial-gradient(circle at 35% 30%, var(--accent-2), var(--accent) 55%, #a8262b);
+    box-shadow: 0 12px 40px color-mix(in srgb, var(--accent) 45%, transparent), inset 0 -6px 18px rgba(0,0,0,.25);
+    font-size: 26px; font-weight: 800; letter-spacing: .12em; transition: transform .1s ease; }
+  .big-btn:hover { transform: scale(1.03); }
+  .big-btn:active { transform: scale(.97); }
+  .big-btn:disabled { filter: grayscale(.8); cursor: not-allowed; }
+  .big-btn.running { animation: pulse 1.6s ease-in-out infinite; }
+  .big-btn small { display: block; font-size: 12px; letter-spacing: .08em; font-weight: 600; opacity: .85; margin-top: 4px; }
+  @keyframes pulse { 0%,100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 55%, transparent); } 50% { box-shadow: 0 0 0 22px transparent; } }
+  .status { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 14px; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--muted); flex: none; }
+  .dot.listening { background: var(--warn); } .dot.playing { background: var(--ok); } .dot.error { background: var(--accent); }
+  .dot.starting, .dot.saving { background: var(--info); }
+  .now { display: flex; align-items: baseline; gap: 18px; margin: 10px 0 6px; flex-wrap: wrap; }
+  .now .chord { font-size: 52px; font-weight: 800; line-height: 1; }
+  .now .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .now .arrow { font-size: 28px; color: var(--muted); }
+  .facts { display: flex; gap: 18px; flex-wrap: wrap; color: var(--muted); font-size: 14px; }
+  .facts b { color: var(--text); font-weight: 600; }
+  .meter { display: flex; gap: 4px; margin-top: 12px; }
+  .meter i { flex: 1; height: 10px; border-radius: 3px; background: var(--panel-2); border: 1px solid var(--line); }
+  .meter i.on { background: var(--accent); border-color: var(--accent); }
+  .band { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-top: 16px; }
+  @media (max-width: 700px) { .band { grid-template-columns: 1fr; } }
+  .musician { background: var(--panel-2); border: 1px solid var(--line); border-radius: 12px; padding: 12px; }
+  .musician .who { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+  .musician .part { font-size: 18px; font-weight: 700; margin: 4px 0 8px; }
+  .musician .part.silent { color: var(--muted); font-weight: 500; }
+  .conf { height: 4px; background: var(--line); border-radius: 2px; overflow: hidden; }
+  .conf span { display: block; height: 100%; background: var(--info); width: 0; transition: width .3s; }
+  .mode { margin-top: 12px; font-size: 13px; color: var(--muted); min-height: 1.4em; }
+  .log { max-height: 260px; overflow: auto; overscroll-behavior: contain; font: 12.5px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace; color: var(--muted); }
+  .log div { white-space: nowrap; }
+  .log .warning { color: var(--warn); } .log .error { color: var(--accent); } .log .info { color: var(--info); }
+  .warn-box { border-left: 3px solid var(--warn); padding: 8px 12px; background: color-mix(in srgb, var(--warn) 10%, transparent); border-radius: 6px; margin-top: 8px; font-size: 14px; }
+  .err-box { border-left: 3px solid var(--accent); padding: 8px 12px; background: color-mix(in srgb, var(--accent) 10%, transparent); border-radius: 6px; margin-top: 8px; font-size: 14px; }
+  .sessions { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .sessions td { padding: 7px 6px; border-top: 1px solid var(--line); vertical-align: middle; }
+  .sessions td:first-child { white-space: nowrap; font-variant-numeric: tabular-nums; }
+  .sessions td:nth-child(2) { color: var(--muted); }
+  .sessions td:last-child { text-align: right; white-space: nowrap; }
+  button.link { background: none; border: 1px solid var(--line); color: var(--text); border-radius: 8px; padding: 4px 9px; font: inherit; font-size: 12px; cursor: pointer; }
+  button.link:hover { border-color: var(--muted); }
+  pre.review { max-height: 480px; overflow: auto; font-size: 11.5px; line-height: 1.5; background: var(--panel-2); padding: 12px; border-radius: 10px; border: 1px solid var(--line); white-space: pre; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-top: 14px; }
+  @media (max-width: 1100px) { .grid2 { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>JEV<span>jam</span></h1>
+  <div class="sub">una banda de IA que improvisa contigo</div>
+  <div id="keyPill" class="pill">comprobando…</div>
+</header>
+
+<main>
+  <!-- ------------------------------------------------------------ opciones -->
+  <section>
+    <div class="card">
+      <h2>Entrada</h2>
+      <div class="seg" data-name="input">
+        <button data-v="mic">Micrófono</button><button data-v="demo">Demo</button><button data-v="file">Grabación</button>
+      </div>
+      <div data-show="input=mic">
+        <label class="field" for="device">Dispositivo</label>
+        <select id="device"></select>
+        <label class="field" for="channel">Canal de entrada</label>
+        <select id="channel"></select>
+        <div class="hint">Usa auriculares: si el micro oye a la banda, se escucha a sí misma.</div>
+      </div>
+      <div data-show="input=demo">
+        <label class="field" for="progression">Progresión del humano sintético</label>
+        <input id="progression" type="text" value="Am,F,C,G">
+        <label class="field" for="demo_bpm">Tempo de la demo: <b id="demoBpmVal">100</b> BPM</label>
+        <input id="demo_bpm" type="range" min="60" max="180" value="100">
+      </div>
+      <div data-show="input=file">
+        <label class="field" for="file">Grabación a repetir</label>
+        <select id="file"></select>
+        <div class="hint">Repite una jam grabada con el código actual, sin volver a tocar.</div>
+      </div>
+      <label class="check" data-show="input=demo,file"><input id="hear_input" type="checkbox" checked> Oír la entrada por los altavoces</label>
+    </div>
+
+    <div class="card">
+      <h2>Tempo</h2>
+      <div class="seg" data-name="tempo"><button data-v="auto">Detectar</button><button data-v="fixed">Fijo</button></div>
+      <div data-show="tempo=fixed">
+        <label class="field" for="bpm"><b id="bpmVal">100</b> BPM</label>
+        <input id="bpm" type="range" min="50" max="200" value="100">
+      </div>
+      <div class="hint" data-show="tempo=auto">La banda entra cuando detecta tu tempo (unos 4 s).</div>
+    </div>
+
+    <div class="card">
+      <h2>Tonalidad</h2>
+      <div class="seg" data-name="keymode"><button data-v="auto">Detectar</button><button data-v="fixed">Fija</button></div>
+      <div class="row" data-show="keymode=fixed" style="margin-top:10px">
+        <select id="tonic"></select>
+        <select id="mode"><option value="major">mayor</option><option value="minor">menor</option></select>
+      </div>
+      <div class="hint" data-show="keymode=auto">Se deduce de los acordes que tocas y sigue los cambios.</div>
+      <div class="hint" data-show="keymode=fixed">Solo se buscarán acordes de esta tonalidad (más robusto).</div>
+    </div>
+
+    <div class="card">
+      <h2>Salida y sesión</h2>
+      <label class="field" for="out">Suena en</label>
+      <select id="out"></select>
+      <label class="field" for="bars">Compases (vacío = hasta que pares)</label>
+      <input id="bars" type="number" min="1" placeholder="sin límite">
+      <label class="check"><input id="record" type="checkbox" checked> Grabar la sesión para revisarla</label>
+    </div>
+  </section>
+
+  <!-- ------------------------------------------------------------ escenario -->
+  <section>
+    <div class="card">
+      <div class="stage">
+        <button id="go" class="big-btn" aria-label="Empezar la jam">JAM<small>EMPEZAR</small></button>
+        <div>
+          <div class="status"><span id="dot" class="dot"></span><span id="statusText">listo</span></div>
+          <div class="now">
+            <div><div class="lbl">oigo</div><div id="heard" class="chord">—</div></div>
+            <div class="arrow">→</div>
+            <div><div class="lbl">la banda toca</div><div id="playing" class="chord">—</div></div>
+          </div>
+          <div class="facts">
+            <span>tonalidad <b id="key">—</b></span>
+            <span><b id="bpmNow">—</b> BPM</span>
+            <span>compás <b id="barNow">—</b></span>
+            <span>Jev <b id="lat">—</b></span>
+          </div>
+          <div class="meter" id="meter" title="energía que pide Jev (0-5)"></div>
+        </div>
+      </div>
+      <div class="band">
+        <div class="musician"><div class="who">Batería</div><div id="p-drums" class="part silent">—</div><div class="conf"><span id="c-drums"></span></div></div>
+        <div class="musician"><div class="who">Bajo</div><div id="p-bass" class="part silent">—</div><div class="conf"><span id="c-bass"></span></div></div>
+        <div class="musician"><div class="who">Teclado</div><div id="p-keys" class="part silent">—</div><div class="conf"><span id="c-keys"></span></div></div>
+      </div>
+      <div id="modeText" class="mode"></div>
+      <div id="alerts"></div>
+    </div>
+
+    <div class="grid2">
+      <div class="card">
+        <h2>En directo</h2>
+        <div id="log" class="log"></div>
+      </div>
+      <div class="card">
+        <h2>Sesiones grabadas</h2>
+        <table class="sessions" id="sessions"></table>
+      </div>
+    </div>
+
+    <div class="card hidden" id="reviewCard">
+      <h2>Revisión <button class="link" id="closeReview" style="float:right">cerrar</button></h2>
+      <pre id="review" class="review"></pre>
+    </div>
+  </section>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const PARTS = {
+  drums: { tacet: "en silencio", light_time: "suave", groove: "groove", driving: "a tope", half_time: "medio tiempo", fill: "redoble" },
+  bass: { tacet: "en silencio", roots_whole: "notas largas", roots_pulse: "fundamental a negras", octaves: "octavas", walking: "walking", syncopated: "sincopado" },
+  keys: { tacet: "en silencio", pads: "colchón", comping: "acompañamiento", arpeggio: "arpegio", answer_phrase: "responde frases" },
+};
+const MODES = {
+  predicted: "Conoce tu progresión: anticipa el próximo acorde.",
+  following: "Sigue el último acorde que oyó (va un compás detrás hasta aprender la progresión).",
+  tonic: "No oye acordes claros: sostiene la tónica.",
+  waiting: "Aprendiendo tu progresión: bajo y teclado esperan.",
+};
+const NOTES = ["C","C#","D","Eb","E","F","F#","G","Ab","A","Bb","B"];
+const KEY_ES = { major: "mayor", minor: "menor" };
+const state = { input: "mic", tempo: "auto", keymode: "auto" };
+let running = false;
+
+// ------------------------------------------------------------ preferencias
+function load() { try { return JSON.parse(localStorage.getItem("jevjam") || "{}"); } catch { return {}; } }
+function save() {
+  const s = { ...state };
+  for (const id of ["device","channel","progression","demo_bpm","file","bpm","tonic","mode","out","bars"]) s[id] = $(id).value;
+  for (const id of ["hear_input","record"]) s[id] = $(id).checked;
+  try { localStorage.setItem("jevjam", JSON.stringify(s)); } catch {}
+}
+const saved = load();
+
+// ------------------------------------------------------------ controles
+function setSeg(name, v) {
+  state[name] = v;
+  document.querySelectorAll(`.seg[data-name=${name}] button`).forEach(b => b.classList.toggle("on", b.dataset.v === v));
+  document.querySelectorAll("[data-show]").forEach(el => {
+    const ok = el.dataset.show.split(";").every(cond => {
+      const [k, vals] = cond.split("=");
+      return vals.split(",").includes(state[k]);
+    });
+    el.classList.toggle("hidden", !ok);
+  });
+  save();
+}
+document.querySelectorAll(".seg").forEach(seg => seg.addEventListener("click", e => {
+  if (e.target.dataset.v && !running) setSeg(seg.dataset.name, e.target.dataset.v);
+}));
+NOTES.forEach(n => $("tonic").add(new Option(n, n)));
+for (let i = 0; i < 6; i++) $("meter").appendChild(document.createElement("i"));
+$("bpm").oninput = () => { $("bpmVal").textContent = $("bpm").value; save(); };
+$("demo_bpm").oninput = () => { $("demoBpmVal").textContent = $("demo_bpm").value; save(); };
+document.querySelectorAll("select, input").forEach(el => el.addEventListener("change", save));
+$("device").onchange = () => { fillChannels(); save(); };
+
+let options = { inputs: [], midi_outputs: [], sessions: [] };
+function fillChannels() {
+  const dev = options.inputs.find(d => String(d.index) === $("device").value);
+  const n = dev ? dev.channels : 1, prev = $("channel").value;
+  $("channel").innerHTML = "";
+  for (let c = 0; c < n; c++) $("channel").add(new Option(`Entrada ${c + 1}`, c));
+  if (prev && prev < n) $("channel").value = prev;
+}
+function shortDate(iso) {  // "2026-09-30 15:09:10" → "30/09 15:09"
+  const m = /^(\d{4})-(\d{2})-(\d{2}) (\d{2}:\d{2})/.exec(iso || "");
+  return m ? `${m[3]}/${m[2]} ${m[4]}` : "";
+}
+function fillSessions(list) {
+  const withAudio = list.filter(s => s.has_audio);
+  const prev = $("file").value || saved.file;
+  $("file").innerHTML = withAudio.length ? "" : "<option value=''>no hay grabaciones</option>";
+  withAudio.forEach(s => $("file").add(new Option(`${shortDate(s.started) || s.folder} · ${s.seconds}s · ${s.bars ?? 0} compases`, s.folder + "/input.wav")));
+  if (prev && [...$("file").options].some(o => o.value === prev)) $("file").value = prev;
+  const t = $("sessions");
+  t.innerHTML = list.length ? "" : "<tr><td class='hint'>Aún no hay sesiones.</td></tr>";
+  list.forEach(s => {
+    const tr = t.insertRow();
+    tr.insertCell().textContent = shortDate(s.started) || s.folder;
+    tr.insertCell().textContent = `${s.bars ?? 0} compases · ${s.input === "mic" ? "micro" : s.input === "demo" ? "demo" : "archivo"}`;
+    const c = tr.insertCell();
+    const rev = document.createElement("button"); rev.className = "link"; rev.textContent = "revisar";
+    rev.onclick = () => showReview(s.folder);
+    c.appendChild(rev);
+    if (s.has_audio) {
+      const rep = document.createElement("button"); rep.className = "link"; rep.textContent = "repetir"; rep.style.marginLeft = "6px";
+      rep.onclick = () => { if (running) return; setSeg("input", "file"); $("file").value = s.folder + "/input.wav"; save(); };
+      c.appendChild(rep);
+    }
+  });
+}
+
+async function loadOptions() {
+  options = await (await fetch("/api/options")).json();
+  const pill = $("keyPill");
+  pill.textContent = options.api_key ? "Jev conectado" : "falta TYPESAFE_API_KEY en .env";
+  pill.className = "pill " + (options.api_key ? "ok" : "bad");
+  $("device").innerHTML = "";
+  options.inputs.forEach(d => $("device").add(new Option(`${d.name}${d.default ? " (por defecto)" : ""}`, d.index)));
+  const def = options.inputs.find(d => d.default);
+  $("device").value = saved.device && options.inputs.some(d => String(d.index) === saved.device) ? saved.device : (def ? def.index : "");
+  fillChannels();
+  if (saved.channel) $("channel").value = saved.channel;
+  $("out").innerHTML = "";
+  [["synth", "Synth integrado (altavoces / auriculares)"], ["virtual", "Puerto MIDI virtual «JEVjam» (para tu DAW)"],
+   ["both", "Los dos"]].forEach(([v, t]) => $("out").add(new Option(t, v)));
+  options.midi_outputs.forEach(n => $("out").add(new Option(`Puerto MIDI: ${n}`, n)));
+  if (saved.out && [...$("out").options].some(o => o.value === saved.out)) $("out").value = saved.out;
+  fillSessions(options.sessions);
+  setRunning(options.running);
+}
+
+// ------------------------------------------------------------ empezar / parar
+function config() {
+  const cfg = {
+    input: state.input === "file" ? $("file").value : state.input,
+    out: $("out").value,
+    record: $("record").checked,
+    bpm: state.tempo === "fixed" ? Number($("bpm").value) : null,
+    key: state.keymode === "fixed" ? `${$("tonic").value} ${$("mode").value}` : null,
+    bars: $("bars").value ? Number($("bars").value) : null,
+  };
+  if (state.input === "mic") { cfg.device = $("device").value; cfg.channel = Number($("channel").value || 0); }
+  if (state.input === "demo") { cfg.progression = $("progression").value; cfg.demo_bpm = Number($("demo_bpm").value); }
+  if (state.input !== "mic") cfg.mute_demo = !$("hear_input").checked;
+  return cfg;
+}
+function setRunning(on) {
+  running = on;
+  const b = $("go");
+  b.classList.toggle("running", on);
+  b.innerHTML = on ? "STOP<small>PARAR</small>" : "JAM<small>EMPEZAR</small>";
+  b.setAttribute("aria-label", on ? "Parar la jam" : "Empezar la jam");
+  document.querySelectorAll("section:first-child select, section:first-child input").forEach(el => el.disabled = on);
+}
+$("go").onclick = async () => {
+  $("go").disabled = true;
+  try {
+    if (!running) {
+      if (state.input === "file" && !$("file").value) throw new Error("elige una grabación");
+      resetLive();
+      const r = await fetch("/api/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config()) });
+      const j = await r.json();
+      if (!r.ok) throw new Error(j.error || "no se pudo empezar");
+      setRunning(true);
+    } else {
+      await fetch("/api/stop", { method: "POST" });
+      setStatus("saving", "parando…");
+    }
+  } catch (e) {
+    alert(e.message);
+  } finally {
+    $("go").disabled = false;
+  }
+};
+
+// ------------------------------------------------------------ directo
+function setStatus(st, text) { $("dot").className = "dot " + st; $("statusText").textContent = text; }
+function logLine(text, cls = "") {
+  const d = document.createElement("div"); d.textContent = text; if (cls) d.className = cls;
+  $("log").prepend(d);
+  while ($("log").children.length > 200) $("log").lastChild.remove();
+}
+function keyEs(k) { if (!k) return "—"; const [t, m] = k.split(" "); return `${t} ${KEY_ES[m] || m}`; }
+function resetLive() {
+  for (const id of ["heard","playing","key","bpmNow","barNow","lat"]) $(id).textContent = "—";
+  for (const a of ["drums","bass","keys"]) { $("p-" + a).textContent = "—"; $("p-" + a).className = "part silent"; $("c-" + a).style.width = 0; }
+  $("modeText").textContent = ""; $("alerts").innerHTML = ""; $("log").innerHTML = "";
+  [...$("meter").children].forEach(i => i.classList.remove("on"));
+}
+function onBar(b) {
+  $("heard").textContent = b.heard;
+  $("playing").textContent = b.playing;
+  $("key").textContent = keyEs(b.key) + (b.key_fixed ? " (fija)" : "");
+  $("bpmNow").textContent = Math.round(b.bpm);
+  $("barNow").textContent = b.bar + 1;
+  $("lat").textContent = b.reused ? "mantiene" : `${b.latency_ms} ms`;
+  [...$("meter").children].forEach((i, n) => i.classList.toggle("on", n < Math.round(b.energy)));
+  for (const a of ["drums","bass","keys"]) {
+    let p = b.parts[a];
+    if (b.harmony_mode === "waiting" && a !== "drums") p = "tacet";
+    $("p-" + a).textContent = PARTS[a][p] || p;
+    $("p-" + a).className = "part" + (p === "tacet" ? " silent" : "");
+    $("c-" + a).style.width = ((b.confidence && b.confidence[a]) || 0) * 100 + "%";
+  }
+  $("modeText").textContent = MODES[b.harmony_mode] || "";
+  logLine(`${String(b.bar + 1).padStart(3)} · oigo ${b.heard.padEnd(5)} → toco ${b.playing.padEnd(5)} · energía ${b.energy.toFixed(1)} · ` +
+          `${PARTS.drums[b.parts.drums]}/${PARTS.bass[b.parts.bass]}/${PARTS.keys[b.parts.keys]}`);
+}
+function onSummary(s) {
+  const box = $("alerts");
+  if (s.error) {
+    box.insertAdjacentHTML("beforeend", `<div class="err-box"></div>`);
+    box.lastChild.textContent = s.error;
+  }
+  (s.warnings || []).forEach(w => { box.insertAdjacentHTML("beforeend", `<div class="warn-box"></div>`); box.lastChild.textContent = "⚠ " + w; });
+  if (s.jev) logLine(`Jev: ${s.jev.on_time} a tiempo, ${s.jev.late} tarde, ${s.jev.errors} errores · mediana ${s.jev.median_ms} ms`, "info");
+  if (s.folder) {
+    logLine(`sesión grabada en ${s.folder}`, "info");
+    const btn = document.createElement("button"); btn.className = "link"; btn.textContent = "ver la revisión de esta jam";
+    btn.style.marginTop = "10px"; btn.onclick = () => showReview(s.folder);
+    box.appendChild(btn);
+  }
+  fetch("/api/sessions").then(r => r.json()).then(fillSessions);
+}
+async function showReview(folder) {
+  $("reviewCard").classList.remove("hidden");
+  $("review").textContent = "analizando…";
+  const j = await (await fetch("/api/review?folder=" + encodeURIComponent(folder))).json();
+  $("review").textContent = j.text || j.error;
+  $("reviewCard").scrollIntoView({ behavior: "smooth" });
+}
+$("closeReview").onclick = () => $("reviewCard").classList.add("hidden");
+
+function connect() {
+  const es = new EventSource("/api/events");
+  es.addEventListener("hello", e => setRunning(JSON.parse(e.data).running));
+  es.addEventListener("status", e => {
+    const s = JSON.parse(e.data);
+    setStatus(s.state, s.text);
+    if (s.state === "done" || s.state === "error") setRunning(false);
+    else setRunning(true);
+    if (s.state === "error") logLine(s.text, "error");
+  });
+  es.addEventListener("message", e => { const m = JSON.parse(e.data); logLine(m.text, m.level); });
+  es.addEventListener("bar", e => onBar(JSON.parse(e.data)));
+  es.addEventListener("summary", e => onSummary(JSON.parse(e.data)));
+  es.onerror = () => { setStatus("error", "sin conexión con la app (¿está corriendo?)"); };
+}
+
+// ------------------------------------------------------------ arranque
+for (const id of ["progression","demo_bpm","bpm","tonic","mode","bars"]) if (saved[id] !== undefined) $(id).value = saved[id];
+for (const id of ["hear_input","record"]) if (saved[id] !== undefined) $(id).checked = saved[id];
+$("bpmVal").textContent = $("bpm").value; $("demoBpmVal").textContent = $("demo_bpm").value;
+setSeg("input", saved.input || "mic"); setSeg("tempo", saved.tempo || "auto"); setSeg("keymode", saved.keymode || "auto");
+loadOptions().catch(e => setStatus("error", "no puedo hablar con la app: " + e.message));
+connect();
+</script>
+</body>
+</html>

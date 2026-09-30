@@ -75,7 +75,7 @@ class Conductor:
     def __init__(self, worker: DecisionWorker, scheduler: Scheduler, sr: int = 48000,
                  beats_per_bar: int = 4, fixed_bpm: float | None = None, input_latency_s: float = 0.0,
                  min_confidence: float = 0.25, verbose: bool = True,
-                 fixed_key: tuple[int, str] | None = None, recorder=None):
+                 fixed_key: tuple[int, str] | None = None, recorder=None, on_bar=None, on_message=None):
         self.worker, self.scheduler = worker, scheduler
         self.analyzer = Analyzer(sr=sr, fixed_key=fixed_key)
         self.band = Band()
@@ -86,6 +86,8 @@ class Conductor:
         self.min_confidence = min_confidence
         self.verbose = verbose
         self.recorder = recorder
+        # Avisos para interfaces (la app web): on_bar(dict) por compás, on_message(texto, nivel).
+        self.on_bar, self.on_message = on_bar, on_message
         self.decision: Decision | None = None
         self.stats = {"bars": 0, "jev_on_time": 0, "jev_late": 0, "jev_errors": 0, "latencies_ms": [],
                       "bar_starts": []}
@@ -186,8 +188,7 @@ class Conductor:
             bar_start += beat
         pending = self._request(0)
         bar = 0
-        if self.verbose:
-            print(f"♪ escuchando a {bpm:.0f} BPM; la banda entra en {bar_start - time.monotonic():.1f} s")
+        self._say(f"♪ escuchando a {bpm:.0f} BPM; la banda entra en {bar_start - time.monotonic():.1f} s")
         while not self._stop.is_set() and (max_bars is None or bar < max_bars):
             beat = 60 / bpm
             # 1) Plazo de la decisión de este compás.
@@ -250,8 +251,7 @@ class Conductor:
                 rem = len(self.beats) % self.bpb
                 if rem:
                     self.beats += [self.beats[-1]] * (self.bpb - rem)
-                if self.verbose:
-                    print(f"  ↷ alineo el pulso 1 con los cambios de acorde (+{shift} pulsos)")
+                self._say(f"↷ alineo el pulso 1 con los cambios de acorde (+{shift} pulsos)")
             self.stats["bar_starts"].append(bar_start)
             bar += 1
 
@@ -282,8 +282,7 @@ class Conductor:
                 return d
             except Exception as exc:  # red, 429, timeout…: la música sigue
                 self.stats["jev_errors"] += 1
-                if self.verbose:
-                    print(f"  ! Jev error en compás {bar}: {type(exc).__name__}: {exc}")
+                self._say(f"Jev error en compás {bar}: {type(exc).__name__}: {exc}", "warning")
         else:
             self.stats["jev_late"] += 1
             pending.cancel()
@@ -358,19 +357,32 @@ class Conductor:
             time.sleep(min(dt, 0.01))
 
     # ------------------------------------------------------------------ salida
+    def _say(self, text: str, level: str = "info") -> None:
+        if self.on_message:
+            self.on_message(text, level)
+        if self.verbose:
+            print(("  ! " if level == "warning" else "  ") + text)
+
     def _print(self, bar: int, d: Decision, h: Harmony, bpm: float, mode: str) -> None:
-        known = mode != "waiting"
         self.stats["bars"] += 1
-        if not self.verbose:
-            return
+        known = mode != "waiting"
         chord = theory.chord_name(h.root, h.quality) if known else "—"
         bars = self.bar_chords()
         heard = bars[-1] if bars else "—"
+        key = theory.key_name(h.key_tonic, h.key_mode)
+        if self.on_bar:
+            self.on_bar({"bar": bar, "bpm": round(bpm, 1), "heard": heard, "playing": chord, "key": key,
+                         "key_fixed": bool(self.analyzer.fixed_key), "energy": round(d.energy, 2),
+                         "parts": d.parts, "confidence": d.confidence, "latency_ms": round(d.latency_ms),
+                         "reused": d.reused, "harmony_mode": mode,
+                         "section_change": round(d.section_change, 2), "leave_space": round(d.leave_space, 2)})
+        if not self.verbose:
+            return
         src = "↺ mantiene" if d.reused else f"jev {d.latency_ms:4.0f} ms"
         src += self.HARMONY_LABELS[mode]
         parts = " ".join(f"{a}={p}" for a, p in d.parts.items())
         print(f"compás {bar:3d} | {bpm:5.1f} BPM | oí {heard:6s} → toco {chord:6s} en "
-              f"{theory.key_name(h.key_tonic, h.key_mode):9s} | energía {d.energy:3.1f} | {parts} | {src}")
+              f"{key:9s} | energía {d.energy:3.1f} | {parts} | {src}")
 
     def _record_bar(self, bar, bar_start, bpm, harmony, mode, parts, decision, events, heard) -> None:
         if not self.recorder:
