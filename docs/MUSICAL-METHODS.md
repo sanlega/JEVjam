@@ -1,217 +1,209 @@
-# Métodos musicales aplicables a JEVjam
+# Musical methods for JEVjam
 
-Investigación del 2026-09-30: qué técnicas de la práctica musical, la psicología del ritmo y
-la informática musical (MIR, sistemas de improvisación) pueden mejorar la banda, y dónde
-encajan en la arquitectura actual. Ordenado por impacto esperado sobre los problemas que
-hemos visto en jams reales.
+Research from 2026-09-30: which techniques from musical practice, rhythm psychology and
+computer music (MIR, improvisation systems) could improve the band, and where they fit in
+the current architecture. Ordered by expected impact on the problems seen in real jams.
 
-Criterio de encaje: JEVjam es **código que escucha y genera + Jev que juzga en opciones
-acotadas**. Un método encaja si (a) mejora la escucha, (b) mejora la generación
-determinista, o (c) da a Jev mejores preguntas u opciones. Los modelos que generan audio de
-extremo a extremo no encajan con el diseño MIDI‑primero (ver §9).
+Fit criterion: JEVjam is **code that listens and generates + Jev judging between bounded
+options**. A method fits if it (a) improves the listening, (b) improves the deterministic
+generation, or (c) gives Jev better questions or options. End-to-end audio generation
+models don't fit the MIDI-first design (see §9).
 
 ---
 
-## 1. Anticipar el acorde siguiente con armonía funcional (+ Jev)
+## 1. Anticipating the next chord with functional harmony (+ Jev)
 
-**Problema actual:** hasta oír la progresión dos veces (≈ 8 compases) la banda va un compás
-tarde ("sigo el último acorde oído"). Es el mayor fallo audible que queda.
+**Current problem:** until it has heard the progression twice (≈ 8 bars), the band is one
+bar late ("follow the last chord heard"). It's the biggest audible flaw left.
 
-**Método:** la armonía tonal no es aleatoria. Las funciones (tónica → subdominante →
-dominante → tónica) y las estadísticas de corpus de pop/rock dan probabilidades de
-transición entre grados. Por ejemplo, V → I y IV → V son muy frecuentes, y en menor
-iv → V → i. [ReaLJam](https://arxiv.org/abs/2502.21267) (Google, CHI 2025) resuelve el mismo
-problema con **anticipación**: el agente predice y planifica los acordes antes de que suenen,
-y le enseña su plan al músico. Su modelo, ReaLchords, se entrenó con unos 30.000 fragmentos
-de canciones pop anotados de Hooktheory.
+**Method:** tonal harmony isn't random. Harmonic functions (tonic → subdominant → dominant →
+tonic) and pop/rock corpus statistics give transition probabilities between scale degrees.
+For example, V → I and IV → V are very common, and in minor iv → V → i.
+[ReaLJam](https://arxiv.org/abs/2502.21267) (Google, CHI 2025) solves the same problem with
+**anticipation**: the agent predicts and plans the chords before they sound, and shows its
+plan to the musician. Its model, ReaLchords, was trained on about 30,000 annotated pop song
+snippets from Hooktheory.
 
-**En JEVjam:**
-- Prior en código: tabla de transiciones entre grados diatónicos (en `theory.py`, a mano
-  a partir de la práctica común; se puede afinar con corpus como el de de Clercq & Temperley
-  o McGill Billboard).
-- Jev como **Choice** entre los acordes diatónicos: "Dado `progression`, ¿qué acorde es más
-  probable que toque ahora el humano?". Es un juicio de sentido común musical; Jev conoce
-  progresiones típicas descritas en texto (p. ej. "I‑V‑vi‑IV").
-- Fusión en código: prior × Jev; si la confianza supera un umbral, se toca la predicción; si
-  no, el modo actual.
-- Bonus ReaLJam: **mostrar en la app el acorde que la banda planea tocar** (ya tenemos
-  "la banda toca"; añadir "próximo").
+**In JEVjam:**
+- A prior in code: a transition table between diatonic degrees (in `theory.py`, written by
+  hand from common practice; it could be refined with corpora such as de Clercq & Temperley
+  or McGill Billboard).
+- Jev as a **Choice** between the diatonic chords: "Given `progression`, which chord is the
+  human most likely to play now?". A musical common-sense judgment; Jev knows typical
+  progressions described in text (e.g. "I‑V‑vi‑IV").
+- Fusion in code: prior × Jev; if the confidence is above a threshold, play the prediction;
+  otherwise, the current mode.
+- ReaLJam bonus: **show in the app the chord the band plans to play** ("the band plays" is
+  already there; add "next").
 
-**Medida:** acierto de acordes de la banda en los compases 0‑8 (hoy ≈ 0 %, porque espera o
-va tarde).
+**Measure:** band chord accuracy in bars 0‑8 (today ≈ 0 %, because it waits or is late).
 
-## 2. Seguimiento de tempo con corrección de fase y periodo
+## 2. Tempo following with phase and period correction
 
-**Problema actual:** `_follow` corrige la fase de forma ad hoc (30 % del error, ±30 ms) y
-el tempo con un suavizado fijo.
+**Current problem:** `_follow` corrects the phase ad hoc (30 % of the error, ±30 ms) and the
+tempo with fixed smoothing.
 
-**Método:** en psicología del ritmo, la sincronización entre músicos se modela con
-**corrección lineal de fase** (y de periodo): cada uno corrige una fracción α de la
-asincronía medida en el pulso anterior. [Wing, Endo, Bradbury y Vorberg
-(2014)](https://royalsocietypublishing.org/doi/10.1098/rsif.2013.1125) lo midieron en
-cuartetos de cuerda y derivan la α óptima que minimiza la varianza de la asincronía.
-[B‑Keeper](https://zenodo.org/record/1177231) (Robertson y Plumbley) aplica esta idea a un
-secuenciador que sigue a un batería en directo (Ableton), con un margen de tempo de ±5 %.
+**Method:** in rhythm psychology, synchronisation between musicians is modelled with
+**linear phase correction** (and period correction): each one corrects a fraction α of the
+asynchrony measured on the previous beat. [Wing, Endo, Bradbury and Vorberg
+(2014)](https://royalsocietypublishing.org/doi/10.1098/rsif.2013.1125) measured it in string
+quartets and derive the optimal α that minimises the variance of the asynchrony.
+[B‑Keeper](https://zenodo.org/record/1177231) (Robertson and Plumbley) applies the idea to a
+sequencer that follows a live drummer (Ableton), with a ±5 % tempo margin.
 
-**En JEVjam:**
-- Medir la asincronía en **cada pulso**: onset del humano más cercano frente a nuestro
-  pulso. Aplicar corrección de fase α ≈ 0,25‑0,5 y de periodo β ≈ 0,1 con límites, como
-  B‑Keeper.
-- Dar más peso a los onsets graves o acentuados (bombo/bajo en B‑Keeper; en guitarra, el
-  rasgueo del pulso 1).
-- Registrar la asincronía en `bars.jsonl` y mostrarla en la revisión (ms, media y
-  desviación).
+**In JEVjam:**
+- Measure the asynchrony on **every beat**: the human's nearest onset vs. our beat. Apply
+  phase correction α ≈ 0.25‑0.5 and period correction β ≈ 0.1, with limits, like B‑Keeper.
+- Give more weight to low or accented onsets (kick/bass in B‑Keeper; on guitar, the beat-1
+  strum).
+- Log the asynchrony in `bars.jsonl` and show it in the review (ms, mean and deviation).
 
-**Medida:** asincronía media y su desviación entre los ataques del humano y la banda.
+**Measure:** mean asynchrony and its deviation between the human's attacks and the band's.
 
-## 3. Pregunta‑respuesta según los huecos del humano
+## 3. Call and response in the human's gaps
 
-**Problema actual:** `answer_phrase` responde en la segunda mitad del compás, toque lo que
-toque el humano.
+**Current problem:** `answer_phrase` answers in the second half of the bar, whatever the
+human is playing.
 
-**Método:** en la improvisación en grupo (trading fours/eights, call and response) se
-responde **en los silencios del otro**, y el acompañante se retira cuando el solista es
-denso. Continuator (Pachet, 2003) y
-[Somax2](https://github.com/DYCI2/Somax2) (IRCAM) escuchan en continuo y responden en función
-de lo oído.
+**Method:** in group improvisation (trading fours/eights, call and response) you answer
+**in the other player's silences**, and the accompanist steps back when the soloist is dense.
+Continuator (Pachet, 2003) and [Somax2](https://github.com/DYCI2/Somax2) (IRCAM) listen
+continuously and respond based on what they hear.
 
-**En JEVjam:**
-- Escucha: detectar **huecos** (pulsos por debajo del umbral tras una frase del humano) y
-  **densidad por pulso**. Ya tenemos ventanas por pulso: es poco trabajo.
-- Contexto para Jev: "the human just left a gap at the end of the phrase" /
+**In JEVjam:**
+- Listening: detect **gaps** (beats below the threshold after one of the human's phrases)
+  and **density per beat**. Per-beat windows already exist, so it's little work.
+- Context for Jev: "the human just left a gap at the end of the phrase" /
   "the human is playing a dense line".
-- Generación: la frase de respuesta se toca **en el hueco** (no en un sitio fijo) y en un
-  **registro distinto** al del humano.
+- Generation: the answer phrase is played **in the gap** (not in a fixed place) and in a
+  **different register** from the human's.
 
-**Medida:** % de notas de respuesta que caen en huecos del humano frente a encima de él.
+**Measure:** % of answer notes that land in the human's gaps vs. on top of them.
 
-## 4. Armonía más robusta: transcripción aproximada + suavizado temporal
+## 4. More robust harmony: approximate transcription + temporal smoothing
 
-**Problema actual:** algunos compases salen "sin acorde" o con acordes espurios al cambiar
-de acorde dentro del compás.
+**Current problem:** some bars come out "no chord", or with spurious chords when the chord
+changes within the bar.
 
-**Métodos:**
-- **NNLS chroma** ([Mauch y Dixon, ISMIR 2010](https://code.soundsoftware.ac.uk/projects/nnls-chroma/)):
-  antes del croma hace una transcripción aproximada (mínimos cuadrados no negativos con un
-  diccionario de notas con armónicos). Mejora en especial los "acordes difíciles"; es la
-  versión rigurosa del arreglo que hicimos para el E de guitarra.
-- **HMM / Viterbi de acordes** con transiciones que dependen de la tonalidad (Chordino,
-  Sheh y Ellis): en vez de decidir cada compás por separado, se busca la secuencia más
-  probable. En tiempo real: filtrado *forward* con un retardo fijo de 1‑2 pulsos.
-- Detectar **cambios de acorde a mitad de compás** (dos acordes por compás) en vez de
-  forzar uno por compás.
+**Methods:**
+- **NNLS chroma** ([Mauch and Dixon, ISMIR 2010](https://code.soundsoftware.ac.uk/projects/nnls-chroma/)):
+  an approximate transcription before the chroma (non-negative least squares with a
+  dictionary of notes with harmonics). It especially improves "difficult chords"; it is the
+  rigorous version of the fix we made for the guitar E.
+- **Chord HMM / Viterbi** with key-dependent transitions (Chordino, Sheh and Ellis): instead
+  of deciding every bar on its own, look for the most likely sequence. In real time: forward
+  filtering with a fixed lag of 1‑2 beats.
+- Detect **chord changes within a bar** (two chords per bar) instead of forcing one per bar.
 
-**Medida:** % de compases con acorde claro y acierto frente a una verdad anotada de 2‑3
-jams reales.
+**Measure:** % of bars with a clear chord and accuracy against an annotated ground truth of
+2‑3 real jams.
 
-## 5. Hipermetro y arco del arreglo
+## 5. Hypermeter and the arc of the arrangement
 
-**Problema actual:** las frases de 4 compases ya ordenan los cambios, pero la jam no tiene
-"forma" (intro, crescendo, estribillo, final).
+**Current problem:** 4-bar phrases already organise the changes, but the jam has no "form"
+(intro, build-up, chorus, ending).
 
-**Método:** la *Generative Theory of Tonal Music* (Lerdahl y Jackendoff, 1983) describe la
-**estructura hipermétrica**: los compases se agrupan en 2 → 4 → 8 → 16, y los cambios
-importantes caen en los límites mayores. La práctica de producción añade el **layering**:
-los instrumentos entran de uno en uno para construir intensidad, se quitan capas antes de
-un momento fuerte (*break*) y hay redobles o *pickups* antes de los límites.
+**Method:** the *Generative Theory of Tonal Music* (Lerdahl and Jackendoff, 1983) describes
+**hypermetrical structure**: bars group into 2 → 4 → 8 → 16, and important changes fall on
+the larger boundaries. Production practice adds **layering**: instruments come in one by one
+to build intensity, layers are removed before a big moment (*break*), and there are fills or
+*pickups* before the boundaries.
 
-**En JEVjam (sobre `phrasing.py`):**
-- Jerarquía: frase (4) → sección (8/16). Los cambios grandes solo en límites de sección y
-  los pequeños (un músico) en límites de frase.
-- **Entrada escalonada** al empezar: batería → bajo → teclado, frase a frase, como una banda
-  que se incorpora.
-- Jev: Score de "en qué punto del arco está la jam" (intro / crece / pico / baja / final)
-  a partir del volumen y la densidad relativos y del tiempo transcurrido; el código lo traduce
-  en capas.
-- **Final**: si el humano va parando (tendencia a la baja + fin de frase), la banda cierra
-  con un acorde de tónica en el pulso 1 en vez de apagarse.
+**In JEVjam (on top of `phrasing.py`):**
+- Hierarchy: phrase (4) → section (8/16). Big changes only on section boundaries, small ones
+  (one musician) on phrase boundaries.
+- **Staggered entry** at the start: drums → bass → keys, phrase by phrase, like a band
+  joining in.
+- Jev: a Score of "where in the arc the jam is" (intro / building / peak / coming down /
+  ending) from relative loudness and density and the elapsed time; code turns it into layers.
+- **Ending**: if the human is winding down (downward trend + end of phrase), the band ends
+  with a tonic chord on beat 1 instead of fading out.
 
-**Medida:** escucha (A/B con y sin arco) y número de "momentos" por jam.
+**Measure:** listening (A/B with and without the arc) and number of "moments" per jam.
 
-## 6. Groove: acentos, síncopa y swing del humano
+## 6. Groove: the human's accents, syncopation and swing
 
-**Problema actual:** la batería elige patrón por energía, pero no copia la rítmica del humano
-(acentos en 2 y 4, síncopas, swing o corcheas rectas).
+**Current problem:** the drums choose a pattern by energy but don't copy the human's rhythm
+(accents on 2 and 4, syncopation, swing or straight eighths).
 
-**Métodos:**
-- Perfil de acentos por subdivisión (qué corcheas o semicorcheas llevan ataques fuertes):
-  índice de síncopa, detección de *half‑time*.
-- **Swing ratio**: relación de duración entre la primera y la segunda corchea (1:1 recto,
-  ~2:1 swing).
-- **Microtiming** por rol, como en la práctica real: el bajo ligeramente por delante o
-  encima del pulso, el charles con swing y la caja algo por detrás en *laid‑back*. Sustituye
-  el ±jitter aleatorio actual.
+**Methods:**
+- Accent profile per subdivision (which eighths or sixteenths carry strong attacks):
+  syncopation index, *half‑time* detection.
+- **Swing ratio**: the duration ratio between the first and second eighth note (1:1
+  straight, ~2:1 swing).
+- **Microtiming** per role, as in real practice: the bass slightly ahead of or on the beat,
+  the hi-hat swung and the snare a little behind when *laid back*. It replaces the current
+  random ±jitter.
 
-**En JEVjam:** análisis por pulso (ya hay onsets) → descriptores en palabras para Jev
-("straight eighths", "swung", "accents on 2 and 4", "syncopated") → Jev elige la sensación y
-el código aplica swing/microtiming en `band.py`.
+**In JEVjam:** per-beat analysis (onsets already exist) → descriptors in words for Jev
+("straight eighths", "swung", "accents on 2 and 4", "syncopated") → Jev chooses the feel and
+code applies swing/microtiming in `band.py`.
 
-**Medida:** coincidencia de swing y acentos entre humano y banda (analizable en `mix.wav`).
+**Measure:** swing and accent match between human and band (can be analysed in `mix.wav`).
 
-## 7. Práctica de voicings y reparto de registro
+## 7. Voicing practice and register allocation
 
-**Problema actual:** el teclado toca tríadas cerradas en 55‑74 y puede pisar el registro del
-humano y duplicar al bajo.
+**Current problem:** the keys play close triads in 55‑74 and can step on the human's
+register and double the bass.
 
-**Métodos (pedagogía de acompañamiento):**
-- **Voicings sin fundamental** cuando hay bajo (la fundamental la pone el bajo) y **notas
-  guía** (3ª y 7ª) en el comping; tensiones (9ª) en estilos que lo piden.
-- **Reparto de registro**: el teclado evita el rango en que toca el humano (se estima con el
-  croma por octavas o el onset grave), igual que un pianista deja sitio al cantante.
-- Conducción de voces ya implementada (mínimo movimiento): mantenerla.
+**Methods (accompaniment pedagogy):**
+- **Rootless voicings** when there is a bass (the bass plays the root) and **guide tones**
+  (3rd and 7th) when comping; tensions (9th) in styles that call for them.
+- **Register allocation**: the keys avoid the range the human plays in (estimated from the
+  chroma per octave or the lowest onset), just as a pianist makes room for the singer.
+- Voice leading is already implemented (minimum movement): keep it.
 
-**Medida:** escucha y solapamiento de registro entre humano y banda.
+**Measure:** listening, and register overlap between human and band.
 
-## 8. Aprender el estilo del propio músico
+## 8. Learning the player's own style
 
-**Métodos:** Continuator (Pachet, 2003; modelos de Markov de orden
-variable sobre lo que toca el músico), OMax / [Somax2](https://github.com/DYCI2/Somax2)
-(IRCAM: Factor Oracle y memoria de corpus, agentes que escuchan y recombinan en tiempo real),
-ImproteK/DYCI2 (improvisación guiada por un "escenario", p. ej. una rejilla de acordes, que es
-exactamente nuestra progresión predicha).
+**Methods:** Continuator (Pachet, 2003; variable-order Markov models of what the musician
+plays), OMax / [Somax2](https://github.com/DYCI2/Somax2) (IRCAM: Factor Oracle and corpus
+memory, agents that listen and recombine in real time), ImproteK/DYCI2 (improvisation guided
+by a "scenario", e.g. a chord chart, which is exactly our predicted progression).
 
-**En JEVjam:** a medio plazo, las frases de respuesta del teclado se construyen con motivos
-del propio humano (transcritos con pitch monofónico) y se transponen a la armonía actual.
-Jev elige entre candidatos ("¿cuál de estas 5 frases responde mejor a lo que acaba de tocar?"),
-que es el patrón "select instead of generate" de TypeSafe.
+**In JEVjam:** in the medium term, the keys' answer phrases are built from the human's own
+motifs (transcribed with monophonic pitch) and transposed to the current harmony. Jev
+chooses between candidates ("which of these 5 phrases best answers what they just played?"),
+which is TypeSafe's "select instead of generate" pattern.
 
-## 9. Lo que no encaja (por ahora)
+## 9. What doesn't fit (for now)
 
-- **Modelos que generan audio en tiempo real** como [Magenta RealTime](https://github.com/magenta/magenta-realtime)
-  (Google DeepMind, pesos abiertos, fragmentos de audio de 2 s guiados por texto o audio):
-  impresionantes, pero generan audio y no MIDI, no siguen acorde a acorde y su latencia de
-  bloque choca con el objetivo de otro músico que responde. Pueden servir de inspiración
-  para un modo "textura/ambiente".
-- **Modelos entrenados de acompañamiento** (ReaLchords): la referencia de calidad para el
-  punto 1, pero requieren entrenamiento propio; empezar con prior + Jev y medir.
+- **Real-time audio generation models** such as [Magenta RealTime](https://github.com/magenta/magenta-realtime)
+  (Google DeepMind, open weights, 2 s audio chunks steered by text or audio): impressive,
+  but they generate audio rather than MIDI, don't follow chord by chord, and their block
+  latency clashes with the goal of another musician who responds. They could inspire a
+  "texture/ambient" mode.
+- **Trained accompaniment models** (ReaLchords): the quality reference for point 1, but they
+  require training our own; start with a prior + Jev and measure.
 
 ---
 
-## Estado (2026-09-30): implementados 1, 2 y 3
+## Status (2026-09-30): 1, 2 and 3 implemented
 
-| # | Qué se hizo | Resultado con jams reales |
+| # | What was done | Result on real jams |
 |---|---|---|
-| 1 | `theory.anticipate_chord`: biblioteca de progresiones habituales en grados y en todas sus rotaciones, con comodín para compases sin acorde, ritmo armónico y desempate por armonía funcional; modo `anticipated` y **plan** de 4 acordes en la app. **Jev no se usa aquí**: medido, acertaba el siguiente acorde 3/10 (tiende a elegir el primero o la tónica: es razonamiento secuencial, fuera de su fuerte) | F‑E‑Am‑G: 10/10 acordes desde que la banda entra (antes 4 fallos en los compases 4‑7); C‑G‑F‑G: 11/11 |
-| 2 | `sync.BeatSync`: corrección de fase (α 0,4) y periodo (β 0,1) por compás con la mediana de asincronías; el tempo solo se corrige si ≥ 3/4 pulsos encajan; latencia de salida compensada | con `--bpm`: +10 ms de media y 28‑31 ms de dispersión (rango de músicos humanos); A/B en una jam irregular: de −42 ms a −17 ms |
-| 3 | `dialogue.GapProfile`: huecos por caída de nivel (≥ 15 dB, o ≥ 8 dB sin ataques), patrón por pulso en 4 compases, registro del humano; la respuesta del teclado va en esos pulsos y en otro registro; fraseo en palabras para Jev | Jev eligió responder al empezar frase y el 80 % de las respuestas cayó en los huecos del humano |
+| 1 | `theory.anticipate_chord`: a library of common progressions as scale degrees in all rotations, with wildcards for bars without a chord, harmonic rhythm, and functional harmony as a tie-breaker; `anticipated` mode and a 4-chord **plan** in the app. **Jev is not used here**: when measured, it got the next chord right 3/10 times (it tends to pick the first option or the tonic; this is sequential reasoning, outside its strengths) | F‑E‑Am‑G: 10/10 chords from the moment the band comes in (before: 4 misses in bars 4‑7); C‑G‑F‑G: 11/11 |
+| 2 | `sync.BeatSync`: phase (α 0.4) and period (β 0.1) correction per bar with the median asynchrony; the tempo is only corrected if ≥ 3/4 beats match; output latency compensated; a constant offset is learned as latency | with `--bpm`: +10 ms mean and 28‑31 ms spread (the range of human musicians); A/B on an irregular jam: from −42 ms to −17 ms |
+| 3 | `dialogue.GapProfile`: gaps from level drops (≥ 15 dB, or ≥ 8 dB with no attacks), a per-beat pattern over 4 bars, the human's register; the keys' answer goes into those beats and a different register; phrasing in words for Jev | Jev chose to answer at the start of a phrase and 80 % of the answers landed in the human's gaps |
 
-Pendiente detectado: la **detección automática de tempo** confunde el pulso con patrones de
-rasgueo (137 BPM en una jam a 100). Con `--bpm` todo funciona; posibles arreglos: tempo por
-toques (tap tempo) o cuenta de entrada, o combinar la autocorrelación con los acentos.
+Open issue found: **automatic tempo detection** confuses the beat with strumming patterns
+(137 BPM in a jam at 100). Everything works with `--bpm`; possible fixes: tap tempo or a
+count-in, or combining the autocorrelation with accents.
 
-## Prioridad recomendada
+## Recommended priority
 
-| # | Método | Arregla | Esfuerzo | Jev |
+| # | Method | Fixes | Effort | Jev |
 |---|---|---|---|---|
-| 1 | Anticipar acordes (armonía funcional + Jev) | compás de retraso al empezar y con progresiones nuevas | medio | Choice del siguiente acorde |
-| 2 | Corrección de fase/periodo | sincronía fina con el humano | bajo‑medio | — |
-| 3 | Pregunta‑respuesta por huecos | "músico que escucha" en vez de patrón fijo | bajo | nuevo contexto + Noul |
-| 5 | Hipermetro, capas y final | que la jam tenga forma | medio | Score del arco |
-| 6 | Groove (acentos/swing) | que la batería "sienta" como el humano | medio | Choice de sensación |
-| 4 | NNLS + HMM de acordes | robustez armónica | medio‑alto | — |
-| 7 | Voicings y registro | sonido más profesional | bajo | — |
-| 8 | Estilo del músico | respuestas con su lenguaje | alto | selección de candidatos |
+| 1 | Anticipate chords (functional harmony + Jev) | one bar of lag at the start and with new progressions | medium | Choice of the next chord |
+| 2 | Phase/period correction | fine timing with the human | low‑medium | — |
+| 3 | Call and response in gaps | "a musician who listens" instead of a fixed pattern | low | new context + Noul |
+| 5 | Hypermeter, layers and ending | give the jam a form | medium | Score of the arc |
+| 6 | Groove (accents/swing) | drums that "feel" like the human | medium | Choice of feel |
+| 4 | NNLS + chord HMM | harmonic robustness | medium‑high | — |
+| 7 | Voicings and register | a more professional sound | low | — |
+| 8 | The player's style | answers in their own language | high | choosing between candidates |
 
-Referencias generales: R. Rowe, *Machine Musicianship* (MIT Press, 2001), el diseño
-escucha/actuación que sigue JEVjam; F. Lerdahl y R. Jackendoff, *A Generative Theory of
-Tonal Music* (MIT Press, 1983).
+General references: R. Rowe, *Machine Musicianship* (MIT Press, 2001), the listening/playing
+design JEVjam follows; F. Lerdahl and R. Jackendoff, *A Generative Theory of Tonal Music*
+(MIT Press, 1983).

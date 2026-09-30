@@ -191,7 +191,7 @@ class Conductor:
             if ready_tempo and snap.silence_seconds < 0.5 and snap.beat_phase_time is not None:
                 return snap
             time.sleep(0.05)
-        raise TimeoutError("No detecto tempo ni sonido. ¿Está el micrófono activo? Prueba --bpm.")
+        raise TimeoutError("No tempo or sound detected. Is the microphone on? Try a fixed tempo (--bpm).")
 
     def _request(self, bar: int) -> object:
         state = build_state(self._snap(), self.memory, self.bpb)
@@ -208,7 +208,7 @@ class Conductor:
             bar_start += beat
         pending = self._request(0)
         bar = 0
-        self._say(f"♪ escuchando a {bpm:.0f} BPM; la banda entra en {bar_start - time.monotonic():.1f} s")
+        self._say(f"♪ listening at {bpm:.0f} BPM; the band comes in in {bar_start - time.monotonic():.1f} s")
         while not self._stop.is_set() and (max_bars is None or bar < max_bars):
             beat = 60 / bpm
             # 1) Plazo de la decisión de este compás.
@@ -245,7 +245,7 @@ class Conductor:
             self.memory.phrase_pos = (plan.phrase_pos + 1) % plan.phrase_bars  # del compás que se decide ahora
             if plan.changed and plan.reason:
                 what = ", ".join(f"{a}: {parts.get(a, '—')}" for a in plan.changed_agents)
-                self._say(("↻ cambio de sección" if plan.reason == "section" else "↻ frase nueva") + f" → {what}")
+                self._say(("↻ section change" if plan.reason == "section" else "↻ new phrase") + f" → {what}")
             self._print(bar, decision, harmony, bpm, mode if self._harmonic_ok or mode == "waiting" else "waiting",
                         plan, parts)
             # 3) Escuchamos el compás pulso a pulso en NUESTRA rejilla. Tras el pulso 1
@@ -295,7 +295,7 @@ class Conductor:
                 rem = len(self.beats) % self.bpb
                 if rem:
                     self.beats += [self.beats[-1]] * (self.bpb - rem)
-                self._say(f"↷ alineo el pulso 1 con los cambios de acorde (+{shift} pulsos)")
+                self._say(f"↷ aligning beat 1 with the chord changes (+{shift} beats)")
             self.stats["bar_starts"].append(bar_start)
             bar += 1
 
@@ -350,7 +350,7 @@ class Conductor:
                 return d
             except Exception as exc:  # red, 429, timeout…: la música sigue
                 self.stats["jev_errors"] += 1
-                self._say(f"Jev error en compás {bar}: {type(exc).__name__}: {exc}", "warning")
+                self._say(f"Jev error in bar {bar}: {type(exc).__name__}: {exc}", "warning")
         else:
             self.stats["jev_late"] += 1
             pending.cancel()
@@ -369,9 +369,9 @@ class Conductor:
     #              (con tonalidad fija, tónica). Sustituye a "seguir el último acorde", que
     #              iba siempre un compás tarde (jam real 17:22: 0 aciertos con acordes que
     #              no se repiten) y mantenía acordes a ciegas cuando el humano tocaba otra cosa.
-    HARMONY_LABELS = {"predicted": "", "anticipated": " · reconozco la progresión",
-                      "reactive": " · escucho tu acorde y entro en el pulso 2",
-                      "waiting": " · aprendiendo la progresión"}
+    HARMONY_LABELS = {"predicted": "", "anticipated": " · progression recognised",
+                      "reactive": " · listening to your chord, joining on beat 2",
+                      "waiting": " · learning the progression"}
 
     def _harmony(self, bar: int) -> tuple[Harmony, str]:
         """Armonía del próximo compás y cómo se ha decidido (ver HARMONY_LABELS)."""
@@ -451,7 +451,7 @@ class Conductor:
                parts: dict[str, str]) -> None:
         self.stats["bars"] += 1
         known = mode != "waiting"
-        chord = theory.chord_name(h.root, h.quality) if known else "—"
+        chord = theory.chord_name(h.root, h.quality) if mode not in ("waiting", "reactive") else "—"  # reactivo: se decide en el pulso 1
         bars = self.bar_chords()
         heard = bars[-1] if bars else "—"
         key = theory.key_name(h.key_tonic, h.key_mode)
@@ -469,11 +469,11 @@ class Conductor:
                          "section_change": round(d.section_change, 2), "leave_space": round(d.leave_space, 2)})
         if not self.verbose:
             return
-        src = "↺ mantiene" if d.reused else f"jev {d.latency_ms:4.0f} ms"
+        src = "↺ kept" if d.reused else f"jev {d.latency_ms:4.0f} ms"
         src += self.HARMONY_LABELS[mode]
         txt = " ".join(f"{a}={p}" for a, p in parts.items())
-        print(f"compás {bar:3d} | frase {plan.phrase_pos + 1}/{plan.phrase_bars} | {bpm:5.1f} BPM | oí {heard:6s} → "
-              f"toco {chord:6s} en {key:9s} | energía {plan.energy:3.1f} | {txt} | {src}")
+        print(f"bar {bar:3d} | phrase {plan.phrase_pos + 1}/{plan.phrase_bars} | {bpm:5.1f} BPM | heard {heard:6s} → "
+              f"play {chord:6s} in {key:9s} | energy {plan.energy:3.1f} | {txt} | {src}")
 
     def _record_bar(self, bar, bar_start, bpm, harmony, mode, parts, decision, events, heard, plan) -> None:
         if not self.recorder:

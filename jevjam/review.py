@@ -1,11 +1,11 @@
-"""Revisión de una sesión grabada: ¿la banda siguió al humano?
+"""Review of a recorded session: did the band follow the player?
 
-    python -m jevjam.review recordings/session-X            # tabla por compás + resumen
-    python -m jevjam.review recordings/session-X --reanalyze   # vuelve a analizar input.wav
-                                                             # con el código actual (para afinar)
-    python -m jevjam.review                                 # la sesión más reciente
+    python -m jevjam.review recordings/session-X               # per-bar table + summary
+    python -m jevjam.review recordings/session-X --reanalyze   # re-analyse input.wav with
+                                                               # the current code (for tuning)
+    python -m jevjam.review                                    # the most recent session
 
-Escribe `review.csv` en la carpeta de la sesión.
+Writes `review.csv` into the session folder.
 """
 from __future__ import annotations
 
@@ -129,16 +129,16 @@ def quality_advice(q: dict) -> list[str]:
     if not q:
         return tips
     if q.get("band_bleed", 0) > 0.25:
-        tips.append(f"el micro oye a la banda (eco a {q['band_bleed_delay_ms']:.0f} ms, índice {q['band_bleed']:.2f}): "
-                    f"usa auriculares; si no, el análisis escucha a la banda en vez de a ti")
+        tips.append(f"the mic hears the band (echo at {q['band_bleed_delay_ms']:.0f} ms, index {q['band_bleed']:.2f}): "
+                    f"use headphones, otherwise the analysis listens to the band instead of you")
     if q["level_db"] < -32:
-        tips.append(f"la entrada llega muy baja ({q['level_db']:.0f} dB, ruido de fondo {q['floor_db']:.0f} dB): "
-                    f"acerca el instrumento al micro, sube la ganancia o usa una interfaz de audio")
+        tips.append(f"the input is very low ({q['level_db']:.0f} dB, noise floor {q['floor_db']:.0f} dB): "
+                    f"move the instrument closer to the mic, raise the gain or use an audio interface")
     if q["clipped_pct"] > 0.5:
-        tips.append(f"la entrada satura ({q['clipped_pct']:.1f} % de muestras): baja la ganancia")
+        tips.append(f"the input is clipping ({q['clipped_pct']:.1f} % of samples): lower the gain")
     if q.get("flatness") is not None and q["flatness"] > 0.4:
-        tips.append(f"casi no hay notas con altura definida (planitud {q['flatness']:.2f}; <0,3 es un instrumento "
-                    f"afinado): lo que entra es sobre todo ruido o golpes, así que no se pueden oír acordes")
+        tips.append(f"there are hardly any pitched notes (flatness {q['flatness']:.2f}; a pitched instrument is <0.3): "
+                    f"the input is mostly noise or knocks, so no chords can be heard")
     return tips
 
 
@@ -151,26 +151,26 @@ def _corr(a: list[float], b: list[float]) -> float | None:
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="jevjam.review", description=__doc__,
                                 formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("folder", nargs="?", help="carpeta de la sesión (por defecto, la más reciente)")
-    p.add_argument("--reanalyze", action="store_true", help="recalcula los acordes del humano con el código actual")
-    p.add_argument("--key", help="tonalidad fija para --reanalyze (por defecto la de la sesión)")
+    p.add_argument("folder", nargs="?", help="session folder (default: the most recent one)")
+    p.add_argument("--reanalyze", action="store_true", help="recompute the player's chords with the current code")
+    p.add_argument("--key", help="fixed key for --reanalyze (default: the session's)")
     args = p.parse_args(argv)
 
     folder = Path(args.folder) if args.folder else max(Path("recordings").glob("session-*/"), default=None)
     if folder is None or not (folder / "bars.jsonl").exists():
-        p.error("no encuentro la sesión (¿carpeta con bars.jsonl?)")
+        p.error("session not found (a folder with bars.jsonl?)")
     meta, bars = load_session(folder)
     if not bars:
-        p.error("la sesión no tiene compases (¿la banda llegó a entrar?)")
+        p.error("the session has no bars (did the band ever come in?)")
     key_arg = args.key or meta.get("key")
     fixed_key = theory.parse_key(key_arg) if key_arg else None
     redo = reanalyze(folder, bars, fixed_key) if args.reanalyze else None
 
-    print(f"sesión {folder}  ·  {len(bars)} compases  ·  {bars[0]['bpm']:.0f} BPM  ·  "
-          f"tonalidad {'fija ' + key_arg if key_arg else 'detectada'}")
-    head = (f"{'cmp':>3} {'t(s)':>6} | {'humano':7} {'sim':>4} {'candidatos':30} {'dB':>6} {'at/p':>4} | "
-            f"{'volumen vs jam':24} {'tendencia':18} | {'E':>3} {'batería':10} {'bajo':11} {'teclado':13} | "
-            f"{'banda':6} {'ok':2}")
+    print(f"session {folder}  ·  {len(bars)} bars  ·  {bars[0]['bpm']:.0f} BPM  ·  "
+          f"key {'fixed ' + key_arg if key_arg else 'detected'}")
+    head = (f"{'bar':>3} {'t(s)':>6} | {'player':7} {'sim':>4} {'candidates':30} {'dB':>6} {'on/b':>4} | "
+            f"{'loudness vs jam':24} {'trend':18} | {'E':>3} {'drums':10} {'bass':11} {'keys':13} | "
+            f"{'band':6} {'ok':2}")
     print(head)
     print("-" * len(head))
     rows_csv = []
@@ -216,28 +216,28 @@ def main(argv=None) -> int:
     # ------------------------------------------------------------------ resumen
     human_chords = [r["human_chord"] for r in rows_csv]
     clear = sum(c != "N" for c in human_chords)
-    print("\nRESUMEN")
-    print(f"· Acorde del humano reconocido en {clear}/{len(bars)} compases "
-          f"({100 * clear / len(bars):.0f} %). Más frecuentes: {Counter(human_chords).most_common(6)}")
+    print("\nSUMMARY")
+    print(f"· Player's chord recognised in {clear}/{len(bars)} bars "
+          f"({100 * clear / len(bars):.0f} %). Most frequent: {Counter(human_chords).most_common(6)}")
     if band_vs_human:
-        print(f"· La banda tocó el mismo acorde que el humano en {sum(band_vs_human)}/{len(band_vs_human)} compases "
-              f"comparables ({100 * sum(band_vs_human) / len(band_vs_human):.0f} %)")
+        print(f"· The band played the player's chord in {sum(band_vs_human)}/{len(band_vs_human)} comparable "
+              f"bars ({100 * sum(band_vs_human) / len(band_vs_human):.0f} %)")
     known = sum(b["band"]["chord_known"] for b in bars)
-    print(f"· La banda conocía la progresión (bajo y teclado tocando) en {known}/{len(bars)} compases")
+    print(f"· The band knew the harmony (bass and keys playing) in {known}/{len(bars)} bars")
     from .keyfinder import key_from_chords
 
     by_chords = key_from_chords(human_chords, [np.array(b["human"]["chroma"]) for b in bars])
     band_keys = Counter(b["band"]["key"] for b in bars)
-    print(f"· Tonalidad por acordes (la que usa la banda sin --key): "
-          f"{theory.key_name(*by_chords[:2]) + f' (confianza {by_chords[2]:.2f})' if by_chords else '—'}; "
-          f"solo por croma: " + ", ".join(f"{k} ({s:.2f})" for k, s in whole_file_key(folder)))
-    print(f"· Tonalidad con la que tocó la banda: {band_keys.most_common(3)}")
+    print(f"· Key from chords (what the band uses without --key): "
+          f"{theory.key_name(*by_chords[:2]) + f' (confidence {by_chords[2]:.2f})' if by_chords else '—'}; "
+          f"chroma only: " + ", ".join(f"{k} ({s:.2f})" for k, s in whole_file_key(folder)))
+    print(f"· Key the band played in: {band_keys.most_common(3)}")
     # La energía que decide Jev para el compás N se pidió con lo oído hasta el N-1.
     r_loud = _corr(loud[:-1], energy[1:])
     r_dens = _corr(dens[:-1], energy[1:])
     fmt = lambda r: "—" if r is None else f"{r:+.2f}"
-    print(f"· ¿La energía de la banda sigue al humano? correlación con su volumen {fmt(r_loud)}, "
-          f"con su densidad {fmt(r_dens)} (1 = sigue perfecto, 0 = no sigue)")
+    print(f"· Does the band's energy follow the player? correlation with their loudness {fmt(r_loud)}, "
+          f"with their density {fmt(r_dens)} (1 = follows perfectly, 0 = doesn't follow)")
     # Pregunta y respuesta: ¿las notas de la frase de respuesta caen en huecos del humano?
     ans_total = ans_in_gap = 0
     for b in bars:
@@ -248,35 +248,35 @@ def main(argv=None) -> int:
                 ans_total += 1
                 ans_in_gap += bool(beat < len(gaps) and gaps[beat])
     if ans_total:
-        print(f"· Pregunta y respuesta: {ans_in_gap}/{ans_total} pulsos de respuesta del teclado cayeron en huecos "
-              f"del humano ({100 * ans_in_gap / ans_total:.0f} %)")
+        print(f"· Call and response: {ans_in_gap}/{ans_total} beats of the keys' answers landed in the player's "
+              f"gaps ({100 * ans_in_gap / ans_total:.0f} %)")
     asyncs = [a for b in bars for a in (b.get("sync") or {}).get("asyncs_ms", [])]
     if len(asyncs) >= 8:
-        print(f"· Sincronía con el humano: su ataque cae a {np.median(asyncs):+.0f} ms del pulso de la banda "
-              f"(dispersión {np.std(asyncs):.0f} ms; entre músicos humanos es típico ±20-30 ms) en "
-              f"{len(asyncs)} pulsos medidos")
+        print(f"· Timing with the player: their attacks land {np.median(asyncs):+.0f} ms from the band's beat "
+              f"(spread {np.std(asyncs):.0f} ms; ±20-30 ms is typical between human musicians) over "
+              f"{len(asyncs)} measured beats")
         lat = [(b.get("sync") or {}).get("latency_ms") for b in bars[-10:]]
         lat = [v for v in lat if v is not None]
         if lat:
-            print(f"  latencia constante estimada (no se corrige): {np.mean(lat):+.0f} ms")
+            print(f"  estimated constant latency (not corrected): {np.mean(lat):+.0f} ms")
         starts = [b["bar_start_s"] for b in bars]
         if len(starts) > 8:
             bar_s = float(np.median(np.diff(starts)))
-            print(f"  tempo real de la banda: {4 * 60 / bar_s:.1f} BPM")
+            print(f"  band's actual tempo: {4 * 60 / bar_s:.1f} BPM")
     lat = [b["jev"]["decision"]["latency_ms"] for b in bars if not b["jev"]["decision"]["reused"]]
     reused = sum(b["jev"]["decision"]["reused"] for b in bars)
     if lat:
-        print(f"· Jev: mediana {statistics.median(lat):.0f} ms, máx {max(lat):.0f} ms; "
-              f"{reused} compases con la decisión anterior mantenida")
+        print(f"· Jev: median {statistics.median(lat):.0f} ms, max {max(lat):.0f} ms; "
+              f"{reused} bars kept the previous decision")
     q = input_quality(folder, bars[0]["bar_start_s"])
     if q:
         bleed = q.get("band_bleed")
-        print(f"· Entrada: nivel {q['level_db']:.0f} dB (ruido {q['floor_db']:.0f} dB), "
-              f"saturación {q['clipped_pct']:.2f} %, planitud {q['flatness'] if q['flatness'] is None else round(q['flatness'], 2)}"
-              f", eco de la banda en el micro {'—' if bleed is None else f'{bleed:.2f} (>0,25 = sí)'}")
+        print(f"· Input: level {q['level_db']:.0f} dB (noise {q['floor_db']:.0f} dB), "
+              f"clipping {q['clipped_pct']:.2f} %, flatness {q['flatness'] if q['flatness'] is None else round(q['flatness'], 2)}"
+              f", band echo in the mic {'—' if bleed is None else f'{bleed:.2f} (>0.25 = yes)'}")
         for tip in quality_advice(q):
             print(f"  ⚠ {tip}")
-    print(f"\nDetalle en {folder / 'review.csv'} · escucha {folder / 'mix.wav'} (humano a la izquierda, banda a la derecha)")
+    print(f"\nDetails in {folder / 'review.csv'} · listen to {folder / 'mix.wav'} (the band in stereo, the player slightly left)")
     return 0
 
 

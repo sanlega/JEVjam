@@ -8,8 +8,8 @@ feel like improvising with other musicians, not like running a song generator.
 ![JEVjam app during a jam](docs/img/app.png)
 
 *The local app mid-jam: what it hears vs. what the band plays, the chord plan it anticipates,
-phrase position, timing offset, input level meter and each musician's current role. (The UI
-is in Spanish; this screenshot uses the built-in preview data, `index.html?preview`.)*
+phrase position, timing offset, input level meter and each musician's current role. (This
+screenshot uses the built-in preview data: open `jevjam/web/index.html?preview`.)*
 
 ## How it works
 
@@ -115,7 +115,7 @@ It only listens on 127.0.0.1: your mic, MIDI and API key stay on your machine.
   - The name of an existing MIDI port.
 - **Use headphones** with a mic. If the mic hears the band, the band ends up listening to itself.
 - **Tempo detection:** automatic detection can confuse some strumming patterns with a
-  different tempo. A fixed tempo (`--bpm`, or "Fijo" in the app) is the reliable option for now.
+  different tempo. A fixed tempo (`--bpm`, or "Fixed" in the app) is the reliable option for now.
 
 ## Record, review, tune
 
@@ -172,7 +172,7 @@ The review summarises:
 | `jevjam/recording.py` | session recording (WAV, MIDI, bars, mix) |
 | `jevjam/review.py` | review of recorded sessions |
 
-## Documentation (in Spanish)
+## Documentation
 
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md): what Jev can and can't do, the architecture,
   and every design decision with the measurements behind it.

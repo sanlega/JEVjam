@@ -1,13 +1,13 @@
-"""JEVjam: micrófono → análisis → contexto → Jev → MIDI → instrumento virtual.
+"""JEVjam: mic → analysis → context → Jev → MIDI → virtual instrument.
 
-    python -m jevjam --input demo            # un humano sintético toca; lo oyes a él y a la banda
-    python -m jevjam --input mic --bpm 100   # tocas tú (con tempo fijo, más robusto)
-    python -m jevjam --input mic --key Am    # tonalidad fija: acordes solo de La menor
-    python -m jevjam --out virtual           # MIDI a un puerto virtual "JEVjam" (DAW/synth)
-    python -m jevjam --input recordings/session-X/input.wav   # repite una jam grabada
+    python -m jevjam --input demo            # a synthetic player strums; you hear it and the band
+    python -m jevjam --input mic --bpm 100   # you play (fixed tempo, most robust)
+    python -m jevjam --input mic --key Am    # fixed key: only chords from A minor
+    python -m jevjam --out virtual           # MIDI to a virtual "JEVjam" port (DAW/synth)
+    python -m jevjam --input recordings/session-X/input.wav   # replay a recorded jam
     python -m jevjam --list-devices
 
-Cada ejecución se graba en recordings/session-*/ (audio, MIDI, decisiones). Revisión:
+Every run is recorded to recordings/session-*/ (audio, MIDI, decisions). Review:
     python -m jevjam.review recordings/session-X
 """
 from __future__ import annotations
@@ -19,30 +19,30 @@ from .session import Session, SessionConfig, list_devices
 
 def main(argv=None) -> int:
     p = argparse.ArgumentParser(prog="jevjam", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    p.add_argument("--input", default="demo", help="mic | demo | ruta a un .wav (p. ej. una grabación anterior)")
-    p.add_argument("--device", help="dispositivo de entrada (índice o nombre) para --input mic")
-    p.add_argument("--channel", type=int, default=0, help="canal de la interfaz de audio (desde 0)")
-    p.add_argument("--out", default="synth", help="synth | virtual | both | nombre de un puerto MIDI existente")
-    p.add_argument("--bpm", type=float, help="tempo fijo (desactiva la detección)")
-    p.add_argument("--key", help="tonalidad fija, p. ej. 'A minor', 'Am', 'C', 'F# major' (desactiva la detección)")
-    p.add_argument("--bars", type=int, help="nº de compases a tocar")
+    p.add_argument("--input", default="demo", help="mic | demo | path to a .wav (e.g. a previous recording)")
+    p.add_argument("--device", help="input device (index or name) for --input mic")
+    p.add_argument("--channel", type=int, default=0, help="audio interface channel (from 0)")
+    p.add_argument("--out", default="synth", help="synth | virtual | both | name of an existing MIDI port")
+    p.add_argument("--bpm", type=float, help="fixed tempo (disables detection)")
+    p.add_argument("--key", help="fixed key, e.g. 'A minor', 'Am', 'C', 'F# major' (disables detection)")
+    p.add_argument("--bars", type=int, help="number of bars to play")
     p.add_argument("--phrase", type=int, default=4, choices=[2, 4, 8, 16],
-                   help="los músicos cambian de papel como mínimo cada tantos compases (por defecto 4)")
-    p.add_argument("--model", help="modelo de Jev (por defecto jev-1.13.0 o $JEV_MODEL)")
-    p.add_argument("--progression", default="Am,F,C,G", help="progresión del humano de --input demo")
+                   help="musicians change role at most every this many bars (default 4)")
+    p.add_argument("--model", help="Jev model (default jev-1.13.0 or $JEV_MODEL)")
+    p.add_argument("--progression", default="Am,F,C,G", help="progression of the --input demo player")
     p.add_argument("--demo-bpm", type=float, default=100)
-    p.add_argument("--mute-demo", action="store_true", help="no reproducir el audio del humano de demo")
+    p.add_argument("--mute-demo", action="store_true", help="don't play the demo player's audio")
     p.add_argument("--sr", type=int, default=48000)
     p.add_argument("--list-devices", action="store_true")
-    p.add_argument("--no-record", action="store_true", help="no grabar la sesión en recordings/")
+    p.add_argument("--no-record", action="store_true", help="don't record the session in recordings/")
     args = p.parse_args(argv)
 
     if args.list_devices:
         devices = list_devices()
-        print("Entradas de audio:")
+        print("Audio inputs:")
         for d in devices["inputs"]:
-            print(f"  {d['index']:2d}  {d['name']}  ({d['channels']} canales){'  ← por defecto' if d['default'] else ''}")
-        print("Salidas MIDI:", devices["midi_outputs"] or "ninguna")
+            print(f"  {d['index']:2d}  {d['name']}  ({d['channels']} channels){'  ← default' if d['default'] else ''}")
+        print("MIDI outputs:", devices["midi_outputs"] or "none")
         return 0
 
     cfg = SessionConfig(input=args.input, device=args.device, channel=args.channel, out=args.out, bpm=args.bpm,
@@ -55,19 +55,19 @@ def main(argv=None) -> int:
         p.error(str(exc))
 
     def emit(kind: str, data: dict) -> None:
-        if kind == "message" and data["text"].startswith(("tonalidad", "MIDI", "demo", "archivo")):
+        if kind == "message" and data["text"].startswith(("fixed key", "MIDI", "demo", "file")):
             print(data["text"])
         elif kind == "status" and data["state"] in ("listening", "saving", "error"):
             print(("\n" if data["state"] != "listening" else "") + data["text"]
-                  + (" (Ctrl+C para salir)" if data["state"] == "listening" else ""))
+                  + (" (Ctrl+C to quit)" if data["state"] == "listening" else ""))
         elif kind == "summary":
             j = data.get("jev")
             if j:
-                print(f"Jev: {j['on_time']} a tiempo, {j['late']} tarde, {j['errors']} errores; latencia mediana "
-                      f"{j['median_ms']} ms, máx {j['max_ms']} ms; retraso máx. del planificador MIDI "
+                print(f"Jev: {j['on_time']} on time, {j['late']} late, {j['errors']} errors; median latency "
+                      f"{j['median_ms']} ms, max {j['max_ms']} ms; max MIDI scheduler lateness "
                       f"{j['midi_max_late_ms']} ms")
             if data.get("folder"):
-                print(f"sesión grabada en {data['folder']}/  →  revisa con: .venv/bin/python -m jevjam.review {data['folder']}")
+                print(f"session recorded in {data['folder']}/  →  review it with: .venv/bin/python -m jevjam.review {data['folder']}")
             for tip in data.get("warnings", []):
                 print(f"⚠ {tip}")
 

@@ -1,10 +1,10 @@
-"""App local de JEVjam: opciones, botón rojo y la jam en directo en el navegador.
+"""JEVjam local app: options, a big red button and the live jam in your browser.
 
-    python -m jevjam.app            # abre http://127.0.0.1:8765
+    python -m jevjam.app            # opens http://127.0.0.1:8765
     python -m jevjam.app --port 9000 --no-browser
 
-Solo escucha en 127.0.0.1: el micro, el MIDI y la clave de Jev se quedan en tu máquina.
-Servidor de la biblioteca estándar; la página recibe los compases por Server-Sent Events.
+Only listens on 127.0.0.1: your mic, MIDI and Jev key stay on your machine.
+Standard-library server; the page receives the bars through Server-Sent Events.
 """
 from __future__ import annotations
 
@@ -52,7 +52,7 @@ class Hub:
     def start(self, cfg: SessionConfig) -> None:
         with self.lock:
             if self.running:
-                raise RuntimeError("ya hay una jam en marcha")
+                raise RuntimeError("a jam is already running")
             self.history = []
         MONITOR.stop()  # libera el micro para la jam
         self.session = Session(cfg, emit=self.emit)
@@ -138,7 +138,7 @@ def parse_config(body: dict) -> SessionConfig:
     allowed = {f.name for f in fields(SessionConfig)}
     unknown = set(body) - allowed
     if unknown:
-        raise ValueError(f"opciones desconocidas: {', '.join(sorted(unknown))}")
+        raise ValueError(f"unknown options: {', '.join(sorted(unknown))}")
     cfg = SessionConfig(**body)
     # JSON → tipos de la configuración
     cfg.bpm = float(cfg.bpm) if cfg.bpm not in (None, "") else None
@@ -147,17 +147,17 @@ def parse_config(body: dict) -> SessionConfig:
     cfg.channel = int(cfg.channel or 0)
     cfg.phrase_bars = int(cfg.phrase_bars)
     if cfg.phrase_bars not in (2, 4, 8, 16):
-        raise ValueError("phrase_bars debe ser 2, 4, 8 o 16")
+        raise ValueError("phrase_bars must be 2, 4, 8 or 16")
     cfg.key = cfg.key or None
     cfg.device = str(cfg.device) if cfg.device not in (None, "") else None
     for name in ("bpm", "demo_bpm"):
         v = getattr(cfg, name)
         if v is not None and not 40 <= float(v) <= 240:
-            raise ValueError(f"{name} debe estar entre 40 y 240")
+            raise ValueError(f"{name} must be between 40 and 240")
     if cfg.bars is not None and int(cfg.bars) < 1:
-        raise ValueError("bars debe ser ≥ 1")
+        raise ValueError("bars must be ≥ 1")
     if cfg.input not in ("mic", "demo") and not Path(cfg.input).is_file():
-        raise ValueError(f"no existe el archivo {cfg.input}")
+        raise ValueError(f"file not found: {cfg.input}")
     cfg.fixed_key()  # valida la tonalidad
     return cfg
 
@@ -179,7 +179,7 @@ def recent_sessions(limit: int = 12) -> list[dict]:
 def review_text(folder: str) -> str:
     path = Path(folder).resolve()
     if RECORDINGS.resolve() not in path.parents or not (path / "bars.jsonl").exists():
-        raise ValueError("carpeta de sesión no válida")
+        raise ValueError("invalid session folder")
     from .review import main as review_main
 
     buf = io.StringIO()
@@ -242,11 +242,11 @@ class Handler(BaseHTTPRequestHandler):
         elif url.path == "/api/events":
             self._events()
         else:
-            self._json({"error": "no encontrado"}, 404)
+            self._json({"error": "not found"}, 404)
 
     def do_POST(self) -> None:
         if not self._same_origin():
-            return self._json({"error": "origen no permitido"}, 403)
+            return self._json({"error": "origin not allowed"}, 403)
         url = urlparse(self.path)
         if url.path == "/api/start":
             try:
@@ -261,18 +261,18 @@ class Handler(BaseHTTPRequestHandler):
             self._json({"ok": True})
         elif url.path == "/api/monitor":
             if HUB.running:
-                return self._json({"ok": False, "reason": "jam en marcha"})
+                return self._json({"ok": False, "reason": "jam running"})
             body = self._body()
             try:
                 MONITOR.start(body.get("device") or None, int(body.get("channel") or 0))
                 self._json({"ok": True})
             except Exception as exc:  # dispositivo ocupado, canal inexistente…
-                self._json({"error": f"no puedo abrir el micro: {exc}"}, 400)
+                self._json({"error": f"can't open the mic: {exc}"}, 400)
         elif url.path == "/api/monitor/stop":
             MONITOR.stop()
             self._json({"ok": True})
         else:
-            self._json({"error": "no encontrado"}, 404)
+            self._json({"error": "not found"}, 404)
 
     def _events(self) -> None:
         self.send_response(200)
@@ -316,7 +316,7 @@ def main(argv=None) -> int:
     server = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
     server.daemon_threads = True
     url = f"http://127.0.0.1:{args.port}"
-    print(f"JEVjam en {url}  (Ctrl+C para cerrar)")
+    print(f"JEVjam at {url}  (Ctrl+C to quit)")
     if not args.no_browser:
         threading.Timer(0.5, lambda: webbrowser.open(url)).start()
     try:

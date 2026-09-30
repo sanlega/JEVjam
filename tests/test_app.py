@@ -15,10 +15,10 @@ def test_parse_config_defaults_are_auto():
 
 
 @pytest.mark.parametrize("body,msg", [
-    ({"input": "demo", "key": "H minor"}, "tonalidad"),
+    ({"input": "demo", "key": "H minor"}, "unrecognised key"),
     ({"input": "demo", "bpm": 900}, "bpm"),
-    ({"input": "/no/existe.wav"}, "no existe"),
-    ({"input": "demo", "rm_rf": True}, "desconocidas"),
+    ({"input": "/no/existe.wav"}, "file not found"),
+    ({"input": "demo", "rm_rf": True}, "unknown options"),
 ])
 def test_parse_config_rejects_bad_input(body, msg):
     with pytest.raises(ValueError, match=msg):

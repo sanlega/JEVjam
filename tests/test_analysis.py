@@ -150,12 +150,12 @@ def test_guitar_e_major_with_loud_low_string_is_recognized():
 
 
 @pytest.mark.parametrize("bars,key,expected,name", [
-    (["F", "E"], (9, "minor"), "Am", "andaluza"),            # jam real 2026-09-30 16:31
-    (["F", "E", "Am"], (9, "minor"), "G", "andaluza"),
+    (["F", "E"], (9, "minor"), "Am", "Andalusian"),            # jam real 2026-09-30 16:31
+    (["F", "E", "Am"], (9, "minor"), "G", "Andalusian"),
     (["C", "G", "F"], (0, "major"), "G", "I-V-IV-V"),        # jam real 2026-09-30 15:09
     (["C", "G", "Am"], (0, "major"), "F", "pop"),
     (["Dm", "G"], (0, "major"), "C", "ii-V-I"),
-    (["F", "N", "Am", "G"], (9, "minor"), "F", "andaluza"),  # un compás sin reconocer no rompe la secuencia
+    (["F", "N", "Am", "G"], (9, "minor"), "F", "Andalusian"),  # un compás sin reconocer no rompe la secuencia
 ])
 def test_anticipate_common_progressions(bars, key, expected, name):
     chord, confidence, progression = theory.anticipate_chord(bars, *key)

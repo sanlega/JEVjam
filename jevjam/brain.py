@@ -123,7 +123,7 @@ class JevBrain:
     def __init__(self, model: str | None = None, timeout_s: float = 1.5):
         load_dotenv()
         if not os.environ.get("TYPESAFE_API_KEY"):
-            raise RuntimeError("Falta TYPESAFE_API_KEY (en el entorno o en .env).")
+            raise RuntimeError("TYPESAFE_API_KEY is missing (set it in the environment or in .env).")
         self.model = model or os.environ.get("JEV_MODEL", "jev-1.13.0")
         self.timeout_s = timeout_s
         self.questions = build_questions()

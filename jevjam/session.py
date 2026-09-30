@@ -81,11 +81,11 @@ class Session:
 
     def run(self) -> dict:
         cfg, emit = self.cfg, self.emit
-        emit("status", {"state": "starting", "text": "preparando…"})
+        emit("status", {"state": "starting", "text": "getting ready…"})
         fixed_key = cfg.fixed_key()
         brain = JevBrain(model=cfg.model)  # antes de abrir audio/MIDI: si falta la clave, no queda nada abierto
         if fixed_key:
-            emit("message", {"text": f"tonalidad fija: {key_name(*fixed_key)}", "level": "info"})
+            emit("message", {"text": f"fixed key: {key_name(*fixed_key)}", "level": "info"})
 
         sinks = []
         output_latency = 0.01  # DAW/puerto MIDI: desconocida, suponemos un búfer típico
@@ -97,7 +97,7 @@ class Session:
             output_latency = float(synth.stream.latency)
         if cfg.out in ("virtual", "both"):
             sinks.append(VirtualPort("JEVjam"))
-            emit("message", {"text": "MIDI: puerto virtual 'JEVjam' (canal 10 batería, 1 bajo, 2 teclado)",
+            emit("message", {"text": "MIDI: virtual port 'JEVjam' (channel 10 drums, 1 bass, 2 keys)",
                              "level": "info"})
         if cfg.out not in ("synth", "virtual", "both"):
             sinks.append(NamedPort(cfg.out))
@@ -113,7 +113,7 @@ class Session:
 
         def on_bar(info: dict) -> None:
             if info["bar"] == 0:
-                emit("status", {"state": "playing", "text": "tocando"})
+                emit("status", {"state": "playing", "text": "playing"})
             emit("bar", info)
 
         conductor = self.conductor = Conductor(
@@ -128,8 +128,8 @@ class Session:
                 prog = [c.strip() for c in cfg.progression.split(",") if c.strip()]
                 audio = render_human(prog, cfg.demo_bpm, sr=cfg.sr, repeats=6, loud_from_bar=len(prog) * 3)
                 source = DemoHuman(conductor.on_audio, audio, sr=cfg.sr, play=not cfg.mute_demo)
-                emit("message", {"text": f"demo: humano sintético tocando {'-'.join(prog)} a {cfg.demo_bpm:.0f} BPM "
-                                         f"(más fuerte desde el compás {len(prog) * 3 + 1})", "level": "info"})
+                emit("message", {"text": f"demo: synthetic player strumming {'-'.join(prog)} at {cfg.demo_bpm:.0f} BPM "
+                                         f"(louder from bar {len(prog) * 3 + 1})", "level": "info"})
             elif cfg.input == "mic":
                 device = int(cfg.device) if isinstance(cfg.device, str) and cfg.device.isdigit() else cfg.device
                 source = MicInput(conductor.on_audio, sr=cfg.sr, device=device, channel=cfg.channel)
@@ -137,7 +137,7 @@ class Session:
             else:
                 audio = load_audio_file(cfg.input, cfg.sr)
                 source = DemoHuman(conductor.on_audio, audio, sr=cfg.sr, play=not cfg.mute_demo)
-                emit("message", {"text": f"archivo: {cfg.input} ({len(audio) / cfg.sr:.0f} s)", "level": "info"})
+                emit("message", {"text": f"file: {cfg.input} ({len(audio) / cfg.sr:.0f} s)", "level": "info"})
             if recorder:
                 recorder.meta.update({"model": brain.model, "input_latency_s": conductor.input_latency_s})
             if not self._stop.is_set():
@@ -150,7 +150,7 @@ class Session:
                         conductor.stop()
 
                     threading.Thread(target=stop_at_end, daemon=True).start()
-                emit("status", {"state": "listening", "text": "escuchando: toca algo…"})
+                emit("status", {"state": "listening", "text": "listening: play something…"})
                 conductor.run(max_bars=cfg.bars)
         except KeyboardInterrupt:
             pass  # Ctrl+C en la CLI: se cierra y se guarda como un final normal
@@ -176,7 +176,7 @@ class Session:
                               "median_ms": round(statistics.median(lat)), "max_ms": round(max(lat)),
                               "midi_max_late_ms": round(scheduler.max_late_ms, 1)}
         if recorder:
-            emit("status", {"state": "saving", "text": "guardando la sesión (audio, MIDI y mezcla)…"})
+            emit("status", {"state": "saving", "text": "saving the session (audio, MIDI and mix)…"})
             stats = {k: v for k, v in s.items() if k != "bar_starts"}
             self.folder = recorder.finish(stats)
             summary["folder"] = str(self.folder)
@@ -187,8 +187,8 @@ class Session:
                 summary["warnings"] = quality_advice(input_quality(self.folder, max(0.0, first_bar)))
         if lost:
             summary["warnings"].append(
-                f"se perdieron {lost} bloques de audio de la entrada (el ordenador no llegó a tiempo); "
-                f"si se repite, cierra otras apps de audio o sube el tamaño de bloque")
+                f"{lost} input audio blocks were lost (the computer couldn't keep up); "
+                f"if it happens again, close other audio apps or increase the block size")
         emit("summary", summary)
-        emit("status", {"state": "error" if error else "done", "text": error or "terminado"})
+        emit("status", {"state": "error" if error else "done", "text": error or "finished"})
         return summary

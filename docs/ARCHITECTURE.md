@@ -1,122 +1,124 @@
-# JEVjam — arquitectura técnica del MVP
+# JEVjam: technical architecture of the MVP
 
-> Objetivo: que tocar con una IA se parezca a **improvisar con otro músico**, no a usar un
-> generador. Esta página recoge la investigación, las decisiones y lo que ya se ha medido
-> en la prueba de concepto (`jevjam/`).
+> Goal: make playing with an AI feel like **improvising with another musician**, not like
+> using a generator. This page collects the research, the decisions and what has been
+> measured in the proof of concept (`jevjam/`).
 
-## 1. Qué es Jev de verdad (y qué no)
+## 1. What Jev really is (and isn't)
 
-Fuente: documentación viva de TypeSafe (docs.typesafe.ai, jev‑1.13, revisada el 2026‑09‑30).
+Source: TypeSafe's live documentation (docs.typesafe.ai, jev‑1.13, reviewed 2026‑09‑30).
 
-| Jev **sí** | Jev **no** |
+| Jev **does** | Jev **doesn't** |
 |---|---|
-| Recibe un `state` de **texto/JSON** y preguntas tipadas | Audio, MIDI binario, imágenes (solo texto) |
-| Devuelve **Choice** (1 de ≤255 opciones + probabilidades), **Score** (2‑10 niveles ordenados), **Noul** (probabilidad de sí) | Generar texto, notas, secuencias o MIDI (“use a generative model”) |
-| Todas las preguntas de una petición se evalúan en paralelo sobre el mismo estado (fan‑out) | Encadenar razonamiento entre preguntas de la misma petición |
-| Probabilidades calibradas + `confidence` para decidir cuándo actuar | Aritmética, contar, comparar números con precisión |
-| ~100 ms según la doc; **medido desde aquí: mediana 230‑275 ms, máx. ~0,9 s** (incluye red) | Ejecutarse en local (API en la nube; 40 req/s, 64k tokens por petición) |
+| Take a **text/JSON** `state` and typed questions | Take audio, binary MIDI or images (text only) |
+| Return a **Choice** (1 of ≤255 options + probabilities), a **Score** (2‑10 ordered levels) or a **Noul** (probability of yes) | Generate text, notes, sequences or MIDI ("use a generative model") |
+| Evaluate all questions in a request in parallel over the same state (fan‑out) | Chain reasoning between questions in the same request |
+| Return calibrated probabilities + `confidence` to decide when to act | Do arithmetic, count, or compare numbers precisely |
+| ~100 ms according to the docs; **measured from here: median 230‑275 ms, max ~0.9 s** (includes network) | Run locally (cloud API; 40 req/s, 64k tokens per request) |
 
-**Consecuencia de diseño:** Jev no puede “tocar”. Puede hacer lo que hace un músico en
-fracciones de segundo: *juzgar* —¿subo la energía?, ¿hago un fill?, ¿dejo espacio?, ¿ha
-cambiado la sección?, ¿qué papel toco en el próximo compás?—. Todo lo exacto (qué notas
-encajan, cuándo suenan, la velocity) lo hace código determinista. Es el patrón
-“select instead of generate” de TypeSafe aplicado a la música.
+**Design consequence:** Jev can't "play". It can do what a musician does in a split second:
+*judge*. Should I raise the energy? Play a fill? Leave space? Has the section changed? Which
+role do I play in the next bar? Everything exact (which notes fit, when they sound, their
+velocity) is done by deterministic code. This is TypeSafe's "select instead of generate"
+pattern applied to music.
 
-## 2. Arquitectura
+## 2. Architecture
 
 ```
-┌──────────────────────────── LOCAL (tiempo real) ────────────────────────────┐
+┌──────────────────────────── LOCAL (real time) ──────────────────────────────┐
 │                                                                              │
-│  micro / interfaz ──► [captura] ──cola──► [análisis]  cada ~10 ms            │
-│   (sounddevice,        256 muestras        onsets, tempo, fase de pulso,     │
-│    5,3 ms/bloque)                          croma→acorde, tonalidad,          │
-│                                            dinámica, densidad, silencio      │
-│                                                 │ Snapshot (números)         │
+│  mic / interface ──► [capture] ──queue──► [analysis]  every ~10 ms           │
+│   (sounddevice,        256 samples          onsets, tempo, beat phase,       │
+│    5.3 ms/block)                            chroma→chord, key,               │
+│                                             dynamics, density, silence       │
+│                                                 │ Snapshot (numbers)         │
 │                                                 ▼                            │
-│                                     [conductor: reloj musical]               │
-│                                      · rejilla de compases propia            │
-│                                      · pulso 1 por cambios de acorde         │
-│                                      · aprende y PREDICE la progresión       │
-│                                      · sigue tempo/fase suavemente           │
-│                     contexto en palabras │           ▲ Decision             │
-│                     (context.py)         ▼           │ (o la última)        │
-│                              ┌────────── hilo Jev (asyncio) ──────────┐      │
-│                              │ 1 petición/compás, fan‑out de 7 preguntas│     │
+│                                     [conductor: musical clock]               │
+│                                      · its own bar grid                      │
+│                                      · downbeat from chord changes           │
+│                                      · learns and PREDICTS the progression   │
+│                                      · follows tempo/phase smoothly          │
+│                     context in words │               ▲ Decision             │
+│                     (context.py)     ▼               │ (or the last one)    │
+│                              ┌────────── Jev thread (asyncio) ─────────┐     │
+│                              │ 1 request/bar, fan‑out of 7 questions   │     │
 │                              └──────────────────┬──────────────────────┘     │
-│                                                 │ (nube, 0,2‑0,9 s)          │
-│  [músicos: band.py]  ◄── papel + energía + armonía predicha                  │
-│   batería · bajo · teclado  →  NoteEvents de 1 compás, deterministas         │
+│                                                 │ (cloud, 0.2‑0.9 s)         │
+│  [musicians: band.py]  ◄── role + energy + predicted harmony                 │
+│   drums · bass · keys  →  one bar of NoteEvents, deterministic               │
 │                 │                                                            │
 │                 ▼                                                            │
-│  [planificador MIDI]  reloj monótono, precisión <1 ms, note_off garantizado  │
+│  [MIDI scheduler]  monotonic clock, <1 ms precision, guaranteed note_off     │
 │        │                       │                        │                    │
 │        ▼                       ▼                        ▼                    │
-│  synth integrado      puerto virtual "JEVjam"     puerto existente           │
-│  (numpy, 0,7 ms/bloque)  (Logic, Ableton, GarageBand, VSTs)  (IAC, hardware)  │
+│  built-in synth       virtual port "JEVjam"       existing port              │
+│  (numpy)              (Logic, Ableton, GarageBand, VSTs)  (IAC, hardware)    │
 └──────────────────────────────────────────────────────────────────────────────┘
                                    ▲
                                    │ POST /v1/systemone
                               Jev (TypeSafe)
 ```
 
-### Dos bucles, dos escalas de tiempo
+### Two loops, two time scales
 
-| Bucle | Frecuencia | Dónde | Qué decide | Si falla |
+| Loop | Frequency | Where | What it decides | If it fails |
 |---|---|---|---|---|
-| **Reflejo** (tiempo real) | cada bloque/pulso | local | cuándo suena cada nota, tempo, fase, acorde | — (es código) |
-| **Juicio** (musical) | 1 vez por compás | Jev | papel de cada músico, energía, sección, espacio | se mantiene la última decisión de Jev |
+| **Reflex** (real time) | every block/beat | local | when each note sounds, tempo, phase, chord | — (it's code) |
+| **Judgment** (musical) | once per bar | Jev | role of each musician, energy, section, space | Jev's last decision is kept |
 
-Así la latencia de Jev **nunca** toca el audio. Un músico humano tampoco cambia de papel a
-mitad de corchea: decide hacia dónde va el siguiente compás mientras toca el actual.
+This way Jev's latency **never** touches the audio. A human musician doesn't change role in
+the middle of an eighth note either: they decide where the next bar is going while playing
+the current one.
 
-### Línea temporal de un compás (implementada en `conductor.py`)
+### Timeline of a bar (implemented in `conductor.py`)
 
 ```
-compás N:  |pulso 1 ─────|pulso 2 ─────|pulso 3 ─────|pulso 4 ───── ▲ ─|compás N+1
-               ▲ foto + petición a Jev para N+1        plazo = inicio N+1 − 120 ms:
-                                                       decisión (o la anterior) → notas de N+1
+bar N:   |beat 1 ─────|beat 2 ─────|beat 3 ─────|beat 4 ───── ▲ ─|bar N+1
+              ▲ snapshot + request to Jev for N+1   deadline = start of N+1 − 120 ms:
+                                                    decision (or the previous one) → notes for N+1
 ```
 
-Presupuesto para Jev: ~3 pulsos menos 120 ms → 1,68 s a 100 BPM, 0,88 s a 180 BPM.
-Medido: 70/70 decisiones a tiempo en 4 jams de prueba (medianas 234‑275 ms, máx. 702 ms).
+Budget for Jev: ~3 beats minus 120 ms → 1.68 s at 100 BPM, 0.88 s at 180 BPM.
+Measured: 70/70 decisions on time across 4 test jams (medians 234‑275 ms, max 702 ms).
+(Later the request moved to after beat 2 when the tempo allows it; see §7.)
 
-## 3. Respuestas a las preguntas del encargo
+## 3. Answers to the questions in the brief
 
-### Qué se ejecuta en local
-Captura, análisis, reloj, predicción armónica, generación de notas, planificación MIDI y
-síntesis. Es decir: **todo lo que tiene plazo**. Lo único remoto es el juicio de Jev, y
-tiene un plan B (mantener la decisión anterior), así que un corte de red degrada la
-creatividad de la banda, no la música.
+### What runs locally
+Capture, analysis, clock, harmonic prediction, note generation, MIDI scheduling and
+synthesis. In other words: **everything that has a deadline**. The only remote part is Jev's
+judgment, and it has a plan B (keep the previous decision), so a network outage degrades the
+band's creativity, not the music.
 
-### Qué hace Jev
-Una petición por compás con 7 preguntas en fan‑out (`brain.py`):
+### What Jev does
+One request per bar with 7 fan‑out questions (`brain.py`):
 
-| id | Tipo | Pregunta (resumen) | Uso en código |
+| id | Type | Question (summary) | Used in code for |
 |---|---|---|---|
-| `energy` | Score 0‑5 | ¿con cuánta energía debe tocar la banda? | velocity; <0,5 = silencio |
-| `section_change` | Noul | ¿ha empezado el humano una sección nueva? | contador de sección; salta la histéresis |
-| `leave_space` | Noul | ¿el humano hace un solo denso/fuerte y hay que dejarle sitio? | comping más escaso |
-| `human_stopped` | Noul | ¿ha dejado de tocar? | la banda para |
-| `drums_part` | Choice ×6 | tacet / light_time / groove / driving / half_time / fill | patrón de batería |
-| `bass_part` | Choice ×6 | tacet / roots_whole / roots_pulse / octaves / walking / syncopated | patrón de bajo |
-| `keys_part` | Choice ×5 | tacet / pads / comping / arpeggio / answer_phrase | patrón de teclado |
+| `energy` | Score 0‑5 | how much energy should the band play with? | velocity; <0.5 = silence |
+| `section_change` | Noul | has the human started a new section? | section counter; can cut a phrase short |
+| `leave_space` | Noul | is the human playing a dense/loud solo that needs room? | sparser comping |
+| `human_stopped` | Noul | has the human stopped playing? | the band stops |
+| `drums_part` | Choice ×6 | tacet / light_time / groove / driving / half_time / fill | drum pattern |
+| `bass_part` | Choice ×6 | tacet / roots_whole / roots_pulse / octaves / walking / syncopated | bass pattern |
+| `keys_part` | Choice ×5 | tacet / pads / comping / arpeggio / answer_phrase | keys pattern |
 
-Cada opción lleva una descripción musical concreta (lo que Jev lee). Añadir un músico =
-añadir una entrada en `AGENT_OPTIONS` y su generador en `band.py`; sigue siendo **una sola
-petición** (≈1.340 tokens de entrada por compás ≈ 0,08 $/hora a 100 BPM).
+Every option carries a concrete musical description (which is what Jev reads). Adding a
+musician = adding an entry to `AGENT_OPTIONS` and its generator in `band.py`; it is still
+**one single request** (≈1,340 input tokens per bar ≈ $0.08/hour at 100 BPM).
 
-Lecciones medidas con Jev:
-- Pedirle “mantén la coherencia con lo que tocaste” lo **ancla**: nunca cambiaba de papel
-  aunque la energía subiera de 1,3 a 4,1. Sin esa frase, con el humano suave elige
-  `light_time/roots_whole/pads` y fuerte `driving/octaves/comping` (confianza 0,8‑0,9).
-  La continuidad va en código: **histéresis** (si `confidence` < 0,25 y no hay cambio de
-  sección, se mantiene el papel anterior).
-- Con el estado en palabras, hace lo musicalmente sensato sin reglas: un **fill** justo en
-  el compás de transición y `driving → groove` una vez asentada la nueva sección.
+Lessons measured with Jev:
+- Asking it to "stay consistent with what you played" **anchors** it: it never changed role
+  even when the energy went from 1.3 to 4.1. Without that sentence it picks
+  `light_time/roots_whole/pads` when the human is soft and `driving/octaves/comping` when loud
+  (confidence 0.8‑0.9). Continuity belongs in code. (At first this was confidence
+  hysteresis; it is now the phrase planner, see §7 "Phrasing".)
+- With the state in words it does the musically sensible thing without rules: a **fill**
+  right in the transition bar and `driving → groove` once the new section settles.
 
-### Cómo representar el contexto (`context.py`)
-Jev falla con números (doc “jaggedness”), así que el código traduce medidas a categorías
-con nombre y mantiene el estado pequeño (context rot):
+### How to represent the context (`context.py`)
+Jev struggles with numbers (see the "jaggedness" docs), so code translates measurements
+into named categories and keeps the state small (context rot):
 
 ```json
 {
@@ -130,182 +132,184 @@ con nombre y mantiene el estado pequeño (context rot):
 }
 ```
 
-La posición en la frase se calcula en código y se entrega en palabras: así Jev puede
-decidir un fill “al final de la frase” sin contar compases.
+The position in the phrase is computed in code and handed over in words, so Jev can decide
+on a fill "at the end of the phrase" without counting bars. (Later additions: loudness and
+density *relative to the rest of the jam*, and the player's phrasing/gaps; see §7.)
 
-### Cómo detectar BPM, tonalidad, acordes y notas con suficiente velocidad (`analysis.py`)
-Todo numpy, hop de 512 muestras (10,7 ms), FFT de 4096; ~110× más rápido que tiempo real.
+### How to detect BPM, key, chords and notes fast enough (`analysis.py`)
+All numpy, 512‑sample hop (10.7 ms), 4096‑point FFT; ~110× faster than real time.
 
-| Rasgo | Método MVP | Resultado en pruebas |
+| Feature | MVP method | Test results |
 |---|---|---|
-| Onsets | flujo espectral log + umbral adaptativo | — |
-| Tempo | autocorrelación de la envolvente de onsets (8 s), prior log‑normal en 110 BPM, pico parabólico | ±0,1 BPM en 84‑150 BPM |
-| Fase de pulso | media circular de la fase de los onsets | bajo ±30 ms/compás de corrección |
-| Pulso 1 | posición dominante de los cambios de acorde | alinea en 2‑3 compases |
-| Acorde | croma de **magnitud** (38 Hz‑2,1 kHz) vs plantillas con **serie armónica** modelada; penaliza séptimas | 56/56 sintéticas; jam real F‑E‑Am‑G 22/22 (con croma de energía, el E de guitarra salía 0/5) |
-| Tonalidad | **rastreador por acordes** (`keyfinder.py`): encaje diatónico + presencia de la tónica + perfil de croma, con histéresis; o fija con `--key` | 11/11 progresiones; sigue modulaciones en 3‑5 compases; jam real C‑G‑F‑G: C mayor (solo croma: G mayor) |
-| Dinámica / tendencia / densidad / silencio | RMS en dB, 2 s vs 6 s previos, onsets/pulso | — |
+| Onsets | log spectral flux + adaptive threshold | — |
+| Tempo | autocorrelation of the onset envelope (8 s), log‑normal prior at 110 BPM, parabolic peak | ±0.1 BPM at 84‑150 BPM (synthetic) |
+| Beat phase | circular mean of the onsets' phase | replaced by `sync.py` (§7) |
+| Downbeat | dominant position of chord changes | aligns in 2‑3 bars |
+| Chord | **magnitude** chroma (38 Hz‑2.1 kHz) vs. templates with the **harmonic series** modelled; sevenths penalised | 56/56 synthetic; real jam F‑E‑Am‑G 22/22 (with energy chroma the guitar E came out 0/5) |
+| Key | **chord-based tracker** (`keyfinder.py`): diatonic fit + tonic presence + chroma profile, with hysteresis; or fixed with `--key` | 11/11 progressions; follows modulations in 3‑5 bars; real jam C‑G‑F‑G: C major (chroma alone: G major) |
+| Dynamics / trend / density / silence | RMS in dB, 2 s vs. previous 6 s, onsets per beat | — |
 
-El acorde del **próximo** compás no se puede oír a tiempo: la banda **aprende la
-progresión** (busca un ciclo de 4/2/8/3/1 compases que se repite) y la anticipa. Hasta
-aprenderla, bajo y teclado esperan (tocarían un compás tarde); la batería entra enseguida.
+The chord of the **next** bar can't be heard in time: the band **learns the progression**
+(it looks for a repeating 4/2/8/3/1‑bar cycle) and anticipates it. (Originally bass and keys
+waited until they had learned it; they now also recognise common progressions and, failing
+that, react within the bar; see §7.)
 
-### Cómo devuelve Jev las decisiones
-Como respuestas tipadas (`choice` + `probabilities` + `confidence`, `score`, `noul`) que
-el código consume sin parsear texto. Guardamos las probabilidades en el registro
-(`recordings/*.jsonl`) para calibrar umbrales con jams reales.
+### How Jev returns its decisions
+As typed answers (`choice` + `probabilities` + `confidence`, `score`, `noul`) that code
+consumes without parsing text. The probabilities are stored in the session log
+(`recordings/*/bars.jsonl`) to calibrate thresholds with real jams.
 
-### Cómo generar MIDI de forma estable (`band.py`, `midi_out.py`)
-- Generadores **deterministas por compás** (semilla = compás): reproducibles y testeables.
-- Voice leading por mínima distancia, notas siempre del acorde o de la escala (tests).
-- Planificador en hilo propio con reloj monótono: retraso máximo medido **0,4‑1,7 ms**.
-- Cada `note_on` lleva su `note_off` programado; re‑ataques cierran la nota previa;
-  `panic()` (All Notes Off, CC123) al salir. Nada queda colgado aunque falle Jev o la red.
-- Canales GM: 10 batería, 1 bajo, 2 teclado → funciona con cualquier DAW/sampler.
+### How to generate MIDI reliably (`band.py`, `midi_out.py`)
+- **Deterministic generators per bar** (seed = bar): reproducible and testable.
+- Minimum‑distance voice leading; notes always from the chord or the scale (tested).
+- Scheduler on its own thread with a monotonic clock: measured max lateness **0.4‑1.7 ms**.
+- Every `note_on` has its `note_off` scheduled; re‑attacks close the previous note;
+  `panic()` (All Notes Off, CC123) on exit. Nothing hangs even if Jev or the network fails.
+- GM channels: 10 drums, 1 bass, 2 keys → works with any DAW/sampler.
 
-### Cómo evitar que la latencia de Jev rompa la jam
-1. Jev fuera del camino crítico: decide el compás **siguiente**.
-2. Plazo duro por compás; si no llega, se mantiene la última decisión (nunca se espera).
-3. Reintentos acotados (1, backoff 50‑100 ms, timeout 1,5 s): un reintento tardío no sirve.
-4. Una única petición por compás (fan‑out) en vez de una por músico.
-5. Histéresis por confianza para que la banda no “tiemble” entre opciones.
+### How to keep Jev's latency from breaking the jam
+1. Jev off the critical path: it decides the **next** bar.
+2. Hard deadline per bar; if it doesn't arrive, the last decision is kept (never wait).
+3. Bounded retries (1, 50‑100 ms backoff, 1.5 s timeout): a late retry is useless.
+4. One single request per bar (fan‑out) instead of one per musician.
+5. Stability in code so the band doesn't "wobble" between options (now: phrases, §7).
 
 ## 4. Stack
 
-**MVP (actual): Python 3.14** — iteración rápida, numpy, SDK oficial de TypeSafe.
+**MVP (current): Python 3.14**: fast iteration, numpy, the official TypeSafe SDK.
 
-| Pieza | Elección MVP | Por qué |
+| Piece | MVP choice | Why |
 |---|---|---|
-| Audio E/S | `sounddevice` (PortAudio) | bloques de 256 muestras, Core Audio/ASIO/ALSA |
-| Análisis | numpy propio | latencia predecible, sin dependencias pesadas |
-| Jev | `typesafe-sdk` (async) | cliente oficial, reintentos configurables |
-| MIDI | `mido` + `python-rtmidi` | puerto virtual nativo en macOS/Linux |
-| Instrumento | synth integrado (numpy) o DAW | probar sin nada instalado |
+| Audio I/O | `sounddevice` (PortAudio) | 256‑sample blocks, Core Audio/ASIO/ALSA |
+| Analysis | own numpy code | predictable latency, no heavy dependencies |
+| Jev | `typesafe-sdk` (async) | official client, configurable retries |
+| MIDI | `mido` + `python-rtmidi` | native virtual port on macOS/Linux |
+| Instrument | built-in synth (numpy) or a DAW | try it with nothing installed |
 
-**Evolución (VST/AU, desktop, DAW):** el camino de audio pasa a C++/Rust; el cerebro sigue
-siendo un proceso/servicio aparte:
+**Evolution (VST/AU, desktop, DAW):** the audio path moves to C++/Rust; the brain stays a
+separate process/service:
 
 ```
-Plugin (JUCE C++ o nih-plug Rust)          Servicio JEVjam (Python o Rust)
-  análisis + reloj + generadores   ◄──IPC/OSC──►  contexto + Jev + memoria de la jam
-  MIDI out sample-accurate                        (mismo contrato Decision)
+Plugin (JUCE C++ or nih-plug Rust)          JEVjam service (Python or Rust)
+  analysis + clock + generators   ◄──IPC/OSC──►  context + Jev + jam memory
+  sample-accurate MIDI out                       (same Decision contract)
 ```
-- **JUCE** (VST3/AU/standalone; GPLv3 o licencia comercial) o **nih-plug** (Rust, VST3/CLAP).
-- **Ableton Link** para compartir tempo con el DAW y otras apps (licencia GPL/comercial).
-- En plugin, la posición/tempo del host sustituyen a la detección de tempo.
+- **JUCE** (VST3/AU/standalone; GPLv3 or commercial licence) or **nih-plug** (Rust, VST3/CLAP).
+- **Ableton Link** to share tempo with the DAW and other apps (GPL/commercial licence).
+- As a plugin, the host's position/tempo replace tempo detection.
 
-## 5. Librerías aprovechables (siguiente iteración)
+## 5. Libraries worth using (next iterations)
 
-| Librería | Para qué | Ojo |
+| Library | For | Beware |
 |---|---|---|
-| aubio | onsets, tempo, pitch YIN en tiempo real (C) | GPL‑3 |
-| Essentia | tonalidad, acordes, beat tracking, modo streaming (C++) | AGPL‑3 o licencia comercial |
-| madmom | beat/downbeat tracking de referencia (RNN+DBN), modo online | modelos con licencia no comercial |
-| BeatNet | beat/downbeat/compás en tiempo real (CRNN + filtro de partículas) | validar latencia |
-| CREPE | pitch monofónico preciso (voz, instrumento solista) | coste de GPU/CPU |
-| Basic Pitch (Spotify) | audio→MIDI polifónico | por ventanas: no apto para baja latencia |
-| librosa | análisis offline y prototipado | no tiempo real |
-| FluidSynth + SoundFont GM | instrumento de calidad sin DAW | LGPL |
+| aubio | real-time onsets, tempo, YIN pitch (C) | GPL‑3 |
+| Essentia | key, chords, beat tracking, streaming mode (C++) | AGPL‑3 or commercial licence |
+| madmom | reference beat/downbeat tracking (RNN+DBN), online mode | models under a non-commercial licence |
+| BeatNet | real-time beat/downbeat/meter (CRNN + particle filter) | validate latency |
+| CREPE | accurate monophonic pitch (voice, solo instrument) | GPU/CPU cost |
+| Basic Pitch (Spotify) | polyphonic audio→MIDI | windowed: not suited to low latency |
+| librosa | offline analysis and prototyping | not real time |
+| FluidSynth + GM SoundFont | quality instrument without a DAW | LGPL |
 
-## 6. Qué es desarrollo propio
+## 6. What had to be built
 
-- Traducción medidas → contexto en palabras (la “interfaz” con Jev) y su evaluación.
-- Catálogo de papeles por músico (opciones + descripciones) y sus generadores MIDI.
-- Reloj musical que sigue al humano (tempo, fase, pulso 1) y predicción de progresiones.
-- Política: plazos, histéresis por confianza, aprendizaje de la progresión.
-- Registro de jams para calibrar umbrales y mejorar preguntas (patrón *autoresearch*).
+- Translation of measurements → context in words (the "interface" with Jev) and its evaluation.
+- Catalogue of roles per musician (options + descriptions) and their MIDI generators.
+- A musical clock that follows the human (tempo, phase, downbeat) and progression prediction.
+- Policy: deadlines, stability, learning the progression.
+- Jam recording to calibrate thresholds and improve the questions (the *autoresearch* pattern).
 
-## 7. Primera prueba con instrumento real (2026-09-30) y cambios
+## 7. First tests with a real instrument (2026-09-30) and the changes they led to
 
-Siete jams reales del usuario (sin audio grabado todavía) mostraron:
+Seven real jams by the user (no audio recorded yet) showed:
 
-| Síntoma | Causa | Cambio |
+| Symptom | Cause | Change |
 |---|---|---|
-| "no clear chord" en el 66 % de los compases | acorde decidido con 0,3 s de croma y umbral de 0,7 pensado para audio sintético | acorde por **ventana de pulso y de compás** (croma sumado); umbral 0,65 (0,55 con `--key`) |
-| la banda clavada en F ~20 compases | la predicción descartaba compases sin acorde y veía un "ciclo" de un solo F | predicción con compases "N" como huecos, ≥75 % de coincidencia entre vueltas; test de regresión |
-| densidad "moderate" en 52/53 compases; "very soft/silent" tocando | descriptores absolutos dependientes de la ganancia del micro | descriptores **relativos a la propia jam** (`loudness_compared_to_this_jam`, `note_density_compared_to_this_jam`) y tendencia por compases |
-| reacción lenta | a Jev solo llegaban compases completos: reaccionaba 2 compases tarde | se incluye lo ya sonado del compás en curso y se pregunta tras el pulso 2 si el tempo lo permite (≤ ~125 BPM) → 1 compás |
+| "no clear chord" in 66 % of bars | chord decided from 0.3 s of chroma with a 0.7 threshold tuned for synthetic audio | chord per **beat and bar window** (summed chroma); threshold 0.65 (0.55 with `--key`) |
+| the band stuck on F for ~20 bars | prediction discarded bars without a chord and saw a "cycle" of a single F | prediction treats "N" bars as gaps, ≥75 % agreement between cycles; regression test |
+| density "moderate" in 52/53 bars; "very soft/silent" while playing | absolute descriptors depending on the mic gain | descriptors **relative to the jam itself** (`loudness_compared_to_this_jam`, `note_density_compared_to_this_jam`) and a bar-based trend |
+| slow reaction | Jev only saw complete bars: it reacted 2 bars late | what has already sounded in the current bar counts, and Jev is asked after beat 2 when the tempo allows it (≤ ~125 BPM) → 1 bar |
 
-Segunda jam real, ya grabada (`session-20260930-150212`, `--key C`): solo sonaba la batería.
-La revisión del audio mostró que el problema era la captación, no el análisis: el micro del
-portátil oía a la banda por los altavoces (eco a 60 ms) y la entrada propia era casi todo
-ruido y golpes (planitud espectral 0,6; un instrumento afinado da <0,3), así que en 29/31
-compases no había acorde que oír y bajo y teclado esperaban para siempre. Cambios: modos
-armónicos de respaldo (`following`, `tonic`) tras 4 compases, y diagnóstico de la entrada
-(nivel, eco de la banda, planitud) en la revisión y al terminar cada sesión.
+Second real jam, now recorded (`session-20260930-150212`, `--key C`): only the drums played.
+The audio review showed the problem was the capture, not the analysis: the laptop mic heard
+the band through the speakers (echo at 60 ms) and the player's own input was mostly noise
+and knocks (spectral flatness 0.6; a pitched instrument gives <0.3), so in 29/31 bars there
+was no chord to hear and bass and keys waited forever. It turned out the wrong mic was
+selected. Changes: fallback harmony modes after 4 bars (later replaced by the reactive mode,
+below) and an input diagnosis (level, band bleed, flatness) in the review and at the end of
+every session.
 
-Además, cada sesión se graba (`recording.py`) y se revisa (`review.py`), y se puede
-repetir una jam desde su `input.wav` para comparar versiones del código con la misma entrada.
+Also, every session is recorded (`recording.py`) and reviewed (`review.py`), and a jam can
+be replayed from its `input.wav` to compare code versions on the same input.
 
-### Tonalidad en tiempo real: estado del arte y elección
+### Real-time key detection: state of the art and choice
 
-| Proyecto | Método | Tiempo real | Licencia |
+| Project | Method | Real time | Licence |
 |---|---|---|---|
-| libKeyFinder (Mixxx) | croma + perfiles de tonalidad | pensado para pistas; usable por tramos | GPL‑3 |
-| Queen Mary key detector (qm‑dsp, Vamp) | croma + perfiles, incremental | sí | GPL |
-| Essentia `Key`/`KeyExtractor` | perfiles (Krumhansl, Temperley, edma…) | modo streaming | AGPL‑3 |
-| madmom | CNN | no (pista completa) | modelos no comerciales |
-| Antares Auto‑Key, Mixed In Key | propietarios | Auto‑Key sí | comercial |
+| libKeyFinder (Mixxx) | chroma + key profiles | designed for tracks; usable on segments | GPL‑3 |
+| Queen Mary key detector (qm‑dsp, Vamp) | chroma + profiles, incremental | yes | GPL |
+| Essentia `Key`/`KeyExtractor` | profiles (Krumhansl, Temperley, edma…) | streaming mode | AGPL‑3 |
+| madmom | CNN | no (whole track) | non-commercial models |
+| Antares Auto‑Key, Mixed In Key | proprietary | Auto‑Key yes | commercial |
 
-Todos comparan croma con perfiles, y con pocos compases confunden tonalidades vecinas
-(C y G mayor comparten 6 de 7 notas). Como JEVjam ya reconoce acordes por compás, la
-tonalidad se deduce de ellos: qué tonalidad contiene los acordes (el F natural descarta G
-mayor), cuál tiene su acorde de tónica presente y al abrir frase (C mayor frente a La
-menor), y el perfil de croma como desempate. Memoria con olvido 0,8 por compás y cambio
-solo si otra tonalidad gana 2 compases seguidos.
+They all compare chroma with profiles, and with few bars they confuse neighbouring keys
+(C and G major share 6 of 7 notes). Since JEVjam already recognises chords per bar, the key
+is deduced from them: which key contains the chords (an F natural rules out G major), which
+one has its tonic chord present and opening phrases (C major vs. A minor), and the chroma
+profile as a tie-breaker. Memory with 0.8 decay per bar; the key only changes if another
+key wins 2 bars in a row.
 
-### El E que no se oía (jam 2026-09-30 16:31)
+### The E that wasn't heard (jam 2026-09-30 16:31)
 
-"Pierde la entrada": el audio no tenía cortes (un solo hueco de 10 ms); lo que se perdía
-era la armonía. En F‑E‑Am‑G el E salía "sin acorde" 5 de 5 veces: con croma de energía
-(magnitud²) la cuerda de Mi grave dominaba y el G# quedaba en un 2 %. Sin el E no se
-aprendía la progresión y la tonalidad saltaba entre F, C y La menor. Con croma de
-magnitud: E 5/5, 22/22 acordes, La menor estable y 14/14 acordes de la banda en modo
-predicho. Además se cuentan los bloques de audio perdidos (overflow del dispositivo o
-análisis saturado) y se avisa al terminar.
+"It loses the input": the audio had no dropouts (a single 10 ms gap); what got lost was the
+harmony. In F‑E‑Am‑G the E came out "no chord" 5 times out of 5: with energy chroma
+(magnitude²) the low E string dominated and the G# was left at 2 %. Without the E the
+progression was never learned and the key jumped between F, C and A minor. With magnitude
+chroma: E 5/5, 22/22 chords, stable A minor and 14/14 band chords in predicted mode. Lost
+audio blocks (device overflow or saturated analysis) are now also counted and reported at
+the end.
 
-### Jam larga del 2026-09-30 17:22 (75 compases, 3 min)
+### Long jam of 2026-09-30 17:22 (75 bars, 3 min)
 
-| Tramo | Problema | Cambio | Antes → después (misma entrada) |
+| Section | Problem | Change | Before → after (same input) |
 |---|---|---|---|
-| acordes que no se repiten | "seguir el último acorde" iba siempre un compás tarde | **modo reactivo**: bajo y teclado oyen el pulso 1 y entran en el 2 con ese acorde; sin acorde claro, callan (tónica con `--key`) | 1/17 → 10/17 |
-| tocar suave sin acordes claros | la banda mantenía F 5 compases a ciegas | lo mismo: sin acorde claro no se inventa | — |
-| sincronía | +55 ms constantes (micro inalámbrico + altavoces) corregidos como error: la banda se retrasaba cada compás y el tempo caía a 99,1 | `sync.py` estima la **latencia** (desfase estable, tempo estable y sin pendiente dentro del compás) y solo corrige las desviaciones | tempo estable; latencia estimada ~60 ms |
-| repetir un archivo | la banda seguía tocando tras acabar el audio | la sesión para al terminar la fuente | — |
+| chords that don't repeat | "follow the last chord" was always one bar late | **reactive mode**: bass and keys listen to beat 1 and come in on beat 2 with that chord; with no clear chord they stay silent (tonic with `--key`) | 1/17 → 10/17 |
+| playing softly without clear chords | the band held F blindly for 5 bars | the same: with no clear chord, nothing is made up | — |
+| timing | a constant +55 ms (wireless mic + speakers) corrected as an error: the band delayed itself every bar and the tempo fell to 99.1 | `sync.py` estimates the **latency** (stable offset, stable tempo and no slope within the bar) and only corrects deviations from it | stable tempo; latency estimated at ~60 ms |
+| replaying a file | the band kept playing after the audio ended | the session stops when the source ends | — |
 
-Synth integrado rehecho (`synth.py`): piano eléctrico FM, bajo por armónicos, batería con
-paso-banda por diferencia de medias móviles, estéreo, reverb de Schroeder vectorizada y
-limitador suave; niveles equilibrados midiendo cada instrumento (bombo −20,7, bajo −22,5,
-teclado −23,7, caja −24,0, charles −31,9 dB); 1,7 ms por bloque de 256 muestras.
+Built-in synth rebuilt (`synth.py`): FM electric piano, additive bass, drums with band-pass
+noise (difference of moving averages), stereo, vectorised Schroeder reverb and a soft
+limiter; levels balanced by measuring each instrument (kick −20.7, bass −22.5, keys −23.7,
+snare −24.0, hi-hat −31.9 dB); 1.7 ms per 256‑sample block.
 
-### Fraseo (`phrasing.py`)
+### Phrasing (`phrasing.py`)
 
-En las jams reales la banda cambiaba de papel cada 1,2–2 compases: Jev decide compás a
-compás y oscila mucho (en un compás 1,0 a "suave" y en el siguiente 0,65 a "a tope"). Ahora:
+In real jams the band changed role every 1.2–2 bars: Jev decides bar by bar and swings a lot
+(1.0 for "soft" in one bar, 0.65 for "full on" in the next). Now:
 
-- los votos de Jev (probabilidades) se acumulan durante la frase y se decide por mayoría
-  al empezar la siguiente; el papel actual se mantiene salvo que otro le gane por > 0,2
-  (con 0,1 alternaba frase sí, frase no en la jam real);
-- todos los músicos cambian a la vez, en el pulso 1 de la frase (2/4/8/16 compases);
-- excepción: `section_change` de Jev ≥ 0,85 cambia en el compás siguiente (decidiendo
-  con la opinión actual, no con los votos de la sección que termina) y abre frase nueva;
-- el redoble es un adorno del último compás de la frase, no un papel;
-- la energía sigue a Jev como mucho ±0,5 por compás;
-- bajo y teclado solo entran al empezar un grupo de 4 compases y no se retiran por un
-  compás sin acorde claro.
+- Jev's votes (probabilities) are accumulated during the phrase and the majority decides at
+  the start of the next one; the current role stays unless another beats it by > 0.2 (with
+  0.1 the band alternated every other phrase in the real jam);
+- all musicians change together, on beat 1 of the phrase (2/4/8/16 bars);
+- exception: Jev's `section_change` ≥ 0.85 changes in the next bar (deciding with the
+  current opinion, not with the votes of the section that is ending) and opens a new phrase;
+- the fill is an ornament of the last bar of the phrase, not a role;
+- energy follows Jev by at most ±0.5 per bar;
+- bass and keys only come in at the start of a 4-bar group.
 
-Con la misma jam real: de ~18 cambios de batería en 28 compases a 3 cambios de papel.
+With the same real jam: from ~18 drum changes in 28 bars to 3 role changes.
 
-## 8. Limitaciones conocidas del PoC y siguientes pasos
+## 8. Known limitations of the PoC and next steps
 
-1. **Validar con instrumentos reales**: las pruebas usan un humano sintético con
-   armónicos idealizados. Medir aciertos de acorde/tempo con guitarra, piano y voz.
-2. **Aprendizaje de progresión más rápido** (hoy: 2 vueltas completas ≈ 8 compases) y
-   seguimiento a nivel de pulso para cambios de acorde no repetitivos.
-3. **Pulso 1 sin armonía** (solo ritmo): usar acentos/graves o un tracker de downbeat.
-4. **Tempo libre / rubato**: hoy se sigue deriva suave (±15 %) y se ignoran saltos.
-5. **Escucha a la banda**: restar la salida propia de la entrada (o usar entrada de línea)
-   para no retroalimentarse cuando se toca con altavoces.
-6. **Más músicos y roles**: guitarra, percusión, sintetizador; `answer_phrase` como
-   pregunta‑respuesta real (elegir frases candidatas generadas en código con un Choice).
-7. **Calibración**: usar las sesiones grabadas (`bars.jsonl`, `review.csv`) para ajustar umbrales.
+1. **Automatic tempo detection** confuses the beat with some strumming patterns (137 BPM in
+   a jam at 100). A fixed tempo is reliable; options: tap tempo, a count-in, or combining the
+   autocorrelation with accents.
+2. **Downbeat without harmony** (rhythm only): use accents/low notes or a downbeat tracker.
+3. **Free tempo / rubato**: gentle drift is followed (±15 %) and jumps are ignored.
+4. **Hearing the band**: subtract the band's own output from the input (or use a line
+   input) so it doesn't feed back when playing through speakers.
+5. **More musicians and roles**: guitar, percussion, synth; answer phrases chosen by Jev
+   among candidates generated in code (a Choice).
+6. **Calibration**: use the recorded sessions (`bars.jsonl`, `review.csv`) to tune thresholds.
+7. The rest of the musical roadmap is in [MUSICAL-METHODS.md](MUSICAL-METHODS.md).

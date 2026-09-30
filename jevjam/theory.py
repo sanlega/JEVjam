@@ -114,7 +114,7 @@ def parse_key(text: str) -> tuple[int, str]:
     name = name[0].upper() + name[1:]
     names = {n.upper(): i for i, n in enumerate(PC_NAMES)} | _PC_ALIASES
     if name.upper() not in names:
-        raise ValueError(f"tonalidad no reconocida: {text!r} (ejemplos: 'A minor', 'Am', 'C', 'F# major')")
+        raise ValueError(f"unrecognised key: {text!r} (examples: 'A minor', 'Am', 'C', 'F# major')")
     return names[name.upper()], mode
 
 
@@ -269,7 +269,7 @@ COMMON_PROGRESSIONS: dict[str, tuple[tuple[str, ...], float]] = {
     "I-V (vamp)": (("I", "V"), 0.4),
     # (El blues de 12 compases se define por duraciones, no por orden de acordes: pendiente.)
     # menor
-    "andaluza (i-VII-VI-V)": (("i", "VII", "VI", "V"), 0.8),
+    "Andalusian (i-VII-VI-V)": (("i", "VII", "VI", "V"), 0.8),
     "i-VI-III-VII": (("i", "VI", "III", "VII"), 0.8),
     "i-iv-v-i": (("i", "iv", "v", "i"), 0.4),
     "i-iv-V-i": (("i", "iv", "V", "i"), 0.5),
@@ -313,7 +313,7 @@ def anticipate_chord(bars: list[str], tonic: int, mode: str, min_events: int = 2
     done = [n for c, n in zip(chords[:-1], lengths[:-1]) if c is not None] or [1]
     typical = sorted(done)[len(done) // 2]
     if lengths[-1] < typical:
-        return chords[-1], 0.8, "mantiene el acorde"
+        return chords[-1], 0.8, "holding the chord"
     seq = []
     for c in chords[-6:]:
         parsed = parse_chord(c) if c else None

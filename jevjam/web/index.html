@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="es">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -121,79 +121,79 @@
 <body>
 <header>
   <h1>JEV<span>jam</span></h1>
-  <div class="sub">una banda de IA que improvisa contigo</div>
-  <div id="keyPill" class="pill">comprobando…</div>
+  <div class="sub">an AI band that jams with you</div>
+  <div id="keyPill" class="pill">checking…</div>
 </header>
 
 <main>
   <!-- ------------------------------------------------------------ opciones -->
   <section>
     <div class="card">
-      <h2>Entrada</h2>
+      <h2>Input</h2>
       <div class="seg" data-name="input">
-        <button data-v="mic">Micrófono</button><button data-v="demo">Demo</button><button data-v="file">Grabación</button>
+        <button data-v="mic">Microphone</button><button data-v="demo">Demo</button><button data-v="file">Recording</button>
       </div>
       <div data-show="input=mic">
-        <label class="field" for="device">Dispositivo</label>
+        <label class="field" for="device">Device</label>
         <select id="device"></select>
-        <label class="field" for="channel">Canal de entrada</label>
+        <label class="field" for="channel">Input channel</label>
         <select id="channel"></select>
-        <div class="vu" data-vu><span class="vu-lbl">nivel</span><div class="vu-bar"><div class="vu-mask"></div><div class="vu-peak"></div></div><span class="vu-val">—</span></div>
-        <div class="hint">Toca algo: si la barra no se mueve, no es el micro correcto. Usa auriculares: si el micro oye a la banda, se escucha a sí misma.</div>
+        <div class="vu" data-vu><span class="vu-lbl">level</span><div class="vu-bar"><div class="vu-mask"></div><div class="vu-peak"></div></div><span class="vu-val">—</span></div>
+        <div class="hint">Play something: if the bar doesn't move, it's not the right mic. Use headphones: if the mic hears the band, the band ends up listening to itself.</div>
       </div>
       <div data-show="input=demo">
-        <label class="field" for="progression">Progresión del humano sintético</label>
+        <label class="field" for="progression">Progression of the synthetic player</label>
         <input id="progression" type="text" value="Am,F,C,G">
-        <label class="field" for="demo_bpm">Tempo de la demo: <b id="demoBpmVal">100</b> BPM</label>
+        <label class="field" for="demo_bpm">Demo tempo: <b id="demoBpmVal">100</b> BPM</label>
         <input id="demo_bpm" type="range" min="60" max="180" value="100">
       </div>
       <div data-show="input=file">
-        <label class="field" for="file">Grabación a repetir</label>
+        <label class="field" for="file">Recording to replay</label>
         <select id="file"></select>
-        <div class="hint">Repite una jam grabada con el código actual, sin volver a tocar.</div>
+        <div class="hint">Replays a recorded jam with the current code, without playing again.</div>
       </div>
-      <label class="check" data-show="input=demo,file"><input id="hear_input" type="checkbox" checked> Oír la entrada por los altavoces</label>
+      <label class="check" data-show="input=demo,file"><input id="hear_input" type="checkbox" checked> Play the input through the speakers</label>
     </div>
 
     <div class="card">
       <h2>Tempo</h2>
-      <div class="seg" data-name="tempo"><button data-v="auto">Detectar</button><button data-v="fixed">Fijo</button></div>
+      <div class="seg" data-name="tempo"><button data-v="auto">Detect</button><button data-v="fixed">Fixed</button></div>
       <div data-show="tempo=fixed">
         <label class="field" for="bpm"><b id="bpmVal">100</b> BPM</label>
         <input id="bpm" type="range" min="50" max="200" value="100">
       </div>
-      <div class="hint" data-show="tempo=auto">La banda entra cuando detecta tu tempo (unos 4 s).</div>
+      <div class="hint" data-show="tempo=auto">The band comes in once it detects your tempo (about 4 s).</div>
     </div>
 
     <div class="card">
-      <h2>Tonalidad</h2>
-      <div class="seg" data-name="keymode"><button data-v="auto">Detectar</button><button data-v="fixed">Fija</button></div>
+      <h2>Key</h2>
+      <div class="seg" data-name="keymode"><button data-v="auto">Detect</button><button data-v="fixed">Fixed</button></div>
       <div class="row" data-show="keymode=fixed" style="margin-top:10px">
         <select id="tonic"></select>
-        <select id="mode"><option value="major">mayor</option><option value="minor">menor</option></select>
+        <select id="mode"><option value="major">major</option><option value="minor">minor</option></select>
       </div>
-      <div class="hint" data-show="keymode=auto">Se deduce de los acordes que tocas y sigue los cambios.</div>
-      <div class="hint" data-show="keymode=fixed">Solo se buscarán acordes de esta tonalidad (más robusto).</div>
+      <div class="hint" data-show="keymode=auto">Worked out from the chords you play; follows key changes.</div>
+      <div class="hint" data-show="keymode=fixed">Only chords from this key will be considered (more robust).</div>
     </div>
 
     <div class="card">
-      <h2>Banda</h2>
-      <label class="field" for="phrase_bars">Cambiar de papel como mínimo cada</label>
+      <h2>Band</h2>
+      <label class="field" for="phrase_bars">Change role at most every</label>
       <select id="phrase_bars">
-        <option value="2">2 compases</option><option value="4" selected>4 compases</option>
-        <option value="8">8 compases</option><option value="16">16 compases</option>
+        <option value="2">2 bars</option><option value="4" selected>4 bars</option>
+        <option value="8">8 bars</option><option value="16">16 bars</option>
       </select>
-      <div class="hint">Los músicos deciden en frases: cambian todos juntos al empezar una frase nueva
-        (con un redoble antes). Solo un cambio de sección muy claro se adelanta. La intensidad sí sigue tu volumen compás a compás, sin saltos.</div>
+      <div class="hint">The musicians think in phrases: they all change together when a new phrase starts
+        (with a fill right before). Only a very clear section change can come early. Intensity still follows your volume bar by bar, smoothly.</div>
     </div>
 
     <div class="card">
-      <h2>Salida y sesión</h2>
-      <label class="field" for="out">Suena en</label>
+      <h2>Output &amp; session</h2>
+      <label class="field" for="out">Sound out through</label>
       <select id="out"></select>
-      <label class="field" for="bars">Compases (vacío = hasta que pares)</label>
-      <input id="bars" type="number" min="1" placeholder="sin límite">
-      <label class="check"><input id="record" type="checkbox" checked> Grabar la sesión para revisarla</label>
+      <label class="field" for="bars">Bars (empty = until you stop)</label>
+      <input id="bars" type="number" min="1" placeholder="no limit">
+      <label class="check"><input id="record" type="checkbox" checked> Record the session to review it</label>
     </div>
   </section>
 
@@ -201,31 +201,31 @@
   <section>
     <div class="card">
       <div class="stage">
-        <button id="go" class="big-btn" aria-label="Empezar la jam">JAM<small>EMPEZAR</small></button>
+        <button id="go" class="big-btn" aria-label="Start the jam">JAM<small>START</small></button>
         <div>
-          <div class="status"><span id="dot" class="dot"></span><span id="statusText">listo</span></div>
+          <div class="status"><span id="dot" class="dot"></span><span id="statusText">ready</span></div>
           <div class="now">
-            <div><div class="lbl">oigo</div><div id="heard" class="chord">—</div></div>
+            <div><div class="lbl">I hear</div><div id="heard" class="chord">—</div></div>
             <div class="arrow">→</div>
-            <div><div class="lbl">la banda toca</div><div id="playing" class="chord">—</div></div>
+            <div><div class="lbl">the band plays</div><div id="playing" class="chord">—</div></div>
           </div>
           <div class="facts">
-            <span>tonalidad <b id="key">—</b></span>
+            <span>key <b id="key">—</b></span>
             <span><b id="bpmNow">—</b> BPM</span>
-            <span>compás <b id="barNow">—</b></span>
-            <span>frase <b id="phraseNow">—</b></span>
+            <span>bar <b id="barNow">—</b></span>
+            <span>phrase <b id="phraseNow">—</b></span>
             <span>Jev <b id="lat">—</b></span>
-            <span>sincronía <b id="syncNow">—</b></span>
+            <span>timing <b id="syncNow">—</b></span>
           </div>
           <div class="plan"><span class="lbl">plan</span> <span id="plan">—</span> <span id="progName" class="prog"></span></div>
-          <div class="meter" id="meter" title="energía que pide Jev (0-5)"></div>
-          <div class="vu" data-vu><span class="vu-lbl">entrada</span><div class="vu-bar"><div class="vu-mask"></div><div class="vu-peak"></div></div><span class="vu-val">—</span></div>
+          <div class="meter" id="meter" title="energy requested by Jev (0-5)"></div>
+          <div class="vu" data-vu><span class="vu-lbl">input</span><div class="vu-bar"><div class="vu-mask"></div><div class="vu-peak"></div></div><span class="vu-val">—</span></div>
         </div>
       </div>
       <div class="band">
-        <div class="musician"><div class="who">Batería</div><div id="p-drums" class="part silent">—</div><div class="conf"><span id="c-drums"></span></div></div>
-        <div class="musician"><div class="who">Bajo</div><div id="p-bass" class="part silent">—</div><div class="conf"><span id="c-bass"></span></div></div>
-        <div class="musician"><div class="who">Teclado</div><div id="p-keys" class="part silent">—</div><div class="conf"><span id="c-keys"></span></div></div>
+        <div class="musician"><div class="who">Drums</div><div id="p-drums" class="part silent">—</div><div class="conf"><span id="c-drums"></span></div></div>
+        <div class="musician"><div class="who">Bass</div><div id="p-bass" class="part silent">—</div><div class="conf"><span id="c-bass"></span></div></div>
+        <div class="musician"><div class="who">Keys</div><div id="p-keys" class="part silent">—</div><div class="conf"><span id="c-keys"></span></div></div>
       </div>
       <div id="modeText" class="mode"></div>
       <div id="alerts"></div>
@@ -233,17 +233,17 @@
 
     <div class="grid2">
       <div class="card">
-        <h2>En directo</h2>
+        <h2>Live</h2>
         <div id="log" class="log"></div>
       </div>
       <div class="card">
-        <h2>Sesiones grabadas</h2>
+        <h2>Recorded sessions</h2>
         <table class="sessions" id="sessions"></table>
       </div>
     </div>
 
     <div class="card hidden" id="reviewCard">
-      <h2>Revisión <button class="link" id="closeReview" style="float:right">cerrar</button></h2>
+      <h2>Review <button class="link" id="closeReview" style="float:right">close</button></h2>
       <pre id="review" class="review"></pre>
     </div>
   </section>
@@ -252,18 +252,18 @@
 <script>
 const $ = (id) => document.getElementById(id);
 const PARTS = {
-  drums: { tacet: "en silencio", light_time: "suave", groove: "groove", driving: "a tope", half_time: "medio tiempo", fill: "redoble" },
-  bass: { tacet: "en silencio", roots_whole: "notas largas", roots_pulse: "fundamental a negras", octaves: "octavas", walking: "walking", syncopated: "sincopado" },
-  keys: { tacet: "en silencio", pads: "colchón", comping: "acompañamiento", arpeggio: "arpegio", answer_phrase: "responde frases" },
+  drums: { tacet: "silent", light_time: "light", groove: "groove", driving: "driving", half_time: "half-time", fill: "fill" },
+  bass: { tacet: "silent", roots_whole: "long roots", roots_pulse: "roots on the beat", octaves: "octaves", walking: "walking", syncopated: "syncopated" },
+  keys: { tacet: "silent", pads: "pads", comping: "comping", arpeggio: "arpeggio", answer_phrase: "answering you" },
 };
 const MODES = {
-  predicted: "Conoce tu progresión: anticipa el próximo acorde.",
-  anticipated: "Reconoce una progresión habitual y la anticipa (aún no la has repetido entera).",
-  reactive: "No puede anticipar tus acordes: escucha tu primer pulso y bajo y teclado entran en el segundo.",
-  waiting: "Aprendiendo tu progresión: bajo y teclado esperan.",
+  predicted: "It knows your progression and plays the next chord on time.",
+  anticipated: "It recognises a common progression and anticipates it (you haven't repeated it yet).",
+  reactive: "It can't anticipate your chords: it listens to your beat 1 and bass & keys come in on beat 2.",
+  waiting: "Learning your progression: bass & keys are waiting.",
 };
 const NOTES = ["C","C#","D","Eb","E","F","F#","G","Ab","A","Bb","B"];
-const KEY_ES = { major: "mayor", minor: "menor" };
+
 const state = { input: "mic", tempo: "auto", keymode: "auto" };
 const PREVIEW = new URLSearchParams(location.search).has("preview");
 let running = false;
@@ -306,7 +306,7 @@ function fillChannels() {
   const dev = options.inputs.find(d => String(d.index) === $("device").value);
   const n = dev ? dev.channels : 1, prev = $("channel").value;
   $("channel").innerHTML = "";
-  for (let c = 0; c < n; c++) $("channel").add(new Option(`Entrada ${c + 1}`, c));
+  for (let c = 0; c < n; c++) $("channel").add(new Option(`Input ${c + 1}`, c));
   if (prev && prev < n) $("channel").value = prev;
 }
 function shortDate(iso) {  // "2026-09-30 15:09:10" → "30/09 15:09"
@@ -316,21 +316,21 @@ function shortDate(iso) {  // "2026-09-30 15:09:10" → "30/09 15:09"
 function fillSessions(list) {
   const withAudio = list.filter(s => s.has_audio);
   const prev = $("file").value || saved.file;
-  $("file").innerHTML = withAudio.length ? "" : "<option value=''>no hay grabaciones</option>";
-  withAudio.forEach(s => $("file").add(new Option(`${shortDate(s.started) || s.folder} · ${s.seconds}s · ${s.bars ?? 0} compases`, s.folder + "/input.wav")));
+  $("file").innerHTML = withAudio.length ? "" : "<option value=''>no recordings yet</option>";
+  withAudio.forEach(s => $("file").add(new Option(`${shortDate(s.started) || s.folder} · ${s.seconds}s · ${s.bars ?? 0} bars`, s.folder + "/input.wav")));
   if (prev && [...$("file").options].some(o => o.value === prev)) $("file").value = prev;
   const t = $("sessions");
-  t.innerHTML = list.length ? "" : "<tr><td class='hint'>Aún no hay sesiones.</td></tr>";
+  t.innerHTML = list.length ? "" : "<tr><td class='hint'>No sessions yet.</td></tr>";
   list.forEach(s => {
     const tr = t.insertRow();
     tr.insertCell().textContent = shortDate(s.started) || s.folder;
-    tr.insertCell().textContent = `${s.bars ?? 0} compases · ${s.input === "mic" ? "micro" : s.input === "demo" ? "demo" : "archivo"}`;
+    tr.insertCell().textContent = `${s.bars ?? 0} bars · ${s.input === "mic" ? "mic" : s.input === "demo" ? "demo" : "file"}`;
     const c = tr.insertCell();
-    const rev = document.createElement("button"); rev.className = "link"; rev.textContent = "revisar";
+    const rev = document.createElement("button"); rev.className = "link"; rev.textContent = "review";
     rev.onclick = () => showReview(s.folder);
     c.appendChild(rev);
     if (s.has_audio) {
-      const rep = document.createElement("button"); rep.className = "link"; rep.textContent = "repetir"; rep.style.marginLeft = "6px";
+      const rep = document.createElement("button"); rep.className = "link"; rep.textContent = "replay"; rep.style.marginLeft = "6px";
       rep.onclick = () => { if (running) return; setSeg("input", "file"); $("file").value = s.folder + "/input.wav"; save(); };
       c.appendChild(rep);
     }
@@ -340,18 +340,18 @@ function fillSessions(list) {
 async function loadOptions() {
   options = await (await fetch("/api/options")).json();
   const pill = $("keyPill");
-  pill.textContent = options.api_key ? "Jev conectado" : "falta TYPESAFE_API_KEY en .env";
+  pill.textContent = options.api_key ? "Jev connected" : "TYPESAFE_API_KEY missing in .env";
   pill.className = "pill " + (options.api_key ? "ok" : "bad");
   $("device").innerHTML = "";
-  options.inputs.forEach(d => $("device").add(new Option(`${d.name}${d.default ? " (por defecto)" : ""}`, d.index)));
+  options.inputs.forEach(d => $("device").add(new Option(`${d.name}${d.default ? " (default)" : ""}`, d.index)));
   const def = options.inputs.find(d => d.default);
   $("device").value = saved.device && options.inputs.some(d => String(d.index) === saved.device) ? saved.device : (def ? def.index : "");
   fillChannels();
   if (saved.channel) $("channel").value = saved.channel;
   $("out").innerHTML = "";
-  [["synth", "Synth integrado (altavoces / auriculares)"], ["virtual", "Puerto MIDI virtual «JEVjam» (para tu DAW)"],
-   ["both", "Los dos"]].forEach(([v, t]) => $("out").add(new Option(t, v)));
-  options.midi_outputs.forEach(n => $("out").add(new Option(`Puerto MIDI: ${n}`, n)));
+  [["synth", "Built-in synth (speakers / headphones)"], ["virtual", "Virtual MIDI port “JEVjam” (for your DAW)"],
+   ["both", "Both"]].forEach(([v, t]) => $("out").add(new Option(t, v)));
+  options.midi_outputs.forEach(n => $("out").add(new Option(`MIDI port: ${n}`, n)));
   if (saved.out && [...$("out").options].some(o => o.value === saved.out)) $("out").value = saved.out;
   fillSessions(options.sessions);
   setRunning(options.running);
@@ -378,8 +378,8 @@ function setRunning(on) {
   running = on;
   const b = $("go");
   b.classList.toggle("running", on);
-  b.innerHTML = on ? "STOP<small>PARAR</small>" : "JAM<small>EMPEZAR</small>";
-  b.setAttribute("aria-label", on ? "Parar la jam" : "Empezar la jam");
+  b.innerHTML = on ? "STOP<small>END JAM</small>" : "JAM<small>START</small>";
+  b.setAttribute("aria-label", on ? "Stop the jam" : "Start the jam");
   document.querySelectorAll("section:first-child select, section:first-child input").forEach(el => el.disabled = on);
   if (!on) setTimeout(updateMonitor, 300);  // al terminar, vuelve el vúmetro de prueba
   else monitorOn = false;                   // la jam ya libera el monitor en el servidor
@@ -388,15 +388,15 @@ $("go").onclick = async () => {
   $("go").disabled = true;
   try {
     if (!running) {
-      if (state.input === "file" && !$("file").value) throw new Error("elige una grabación");
+      if (state.input === "file" && !$("file").value) throw new Error("choose a recording");
       resetLive();
       const r = await fetch("/api/start", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(config()) });
       const j = await r.json();
-      if (!r.ok) throw new Error(j.error || "no se pudo empezar");
+      if (!r.ok) throw new Error(j.error || "could not start");
       setRunning(true);
     } else {
       await fetch("/api/stop", { method: "POST" });
-      setStatus("saving", "parando…");
+      setStatus("saving", "stopping…");
     }
   } catch (e) {
     alert(e.message);
@@ -412,7 +412,6 @@ function logLine(text, cls = "") {
   $("log").prepend(d);
   while ($("log").children.length > 200) $("log").lastChild.remove();
 }
-function keyEs(k) { if (!k) return "—"; const [t, m] = k.split(" "); return `${t} ${KEY_ES[m] || m}`; }
 function resetLive() {
   for (const id of ["heard","playing","key","bpmNow","barNow","lat","phraseNow","syncNow","plan"]) $(id).textContent = "—";
   $("progName").textContent = "";
@@ -424,11 +423,11 @@ function onBar(b) {
   if (b.update) { $("playing").textContent = b.playing; return; }  // modo reactivo: acorde decidido en el pulso 1
   $("heard").textContent = b.heard;
   $("playing").textContent = b.playing;
-  $("key").textContent = keyEs(b.key) + (b.key_fixed ? " (fija)" : "");
+  $("key").textContent = (b.key || "—") + (b.key_fixed ? " (fixed)" : "");
   $("bpmNow").textContent = Math.round(b.bpm);
   $("barNow").textContent = b.bar + 1;
   $("phraseNow").textContent = `${b.phrase_pos + 1}/${b.phrase_bars}`;
-  $("lat").textContent = b.reused ? "mantiene" : `${b.latency_ms} ms`;
+  $("lat").textContent = b.reused ? "kept" : `${b.latency_ms} ms`;
   [...$("meter").children].forEach((i, n) => i.classList.toggle("on", n < Math.round(b.energy)));
   for (const a of ["drums","bass","keys"]) {
     const p = b.parts[a] || "tacet";
@@ -439,13 +438,13 @@ function onBar(b) {
   $("syncNow").textContent = b.sync_ms ? `${b.sync_ms > 0 ? "+" : ""}${Math.round(b.sync_ms)} ms` : "—";
   $("plan").textContent = (b.plan && b.plan.length) ? b.plan.join(" → ") : "—";
   $("progName").textContent = b.progression || "";
-  const phr = { "not enough history yet": "", "playing continuously, without leaving gaps": "Tocas sin pausas: el teclado se queda atrás.",
-    "plays at the start of each bar and leaves space at the end, inviting an answer": "Dejas espacio al final del compás: el teclado puede responder ahí.",
-    "leaves gaps on some beats of each bar": "Dejas huecos en algunos pulsos.", "mostly silent, leaving the whole bar empty": "Estás dejando compases vacíos." };
+  const phr = { "not enough history yet": "", "playing continuously, without leaving gaps": "You play without pauses: the keys stay in the background.",
+    "plays at the start of each bar and leaves space at the end, inviting an answer": "You leave space at the end of the bar: the keys can answer there.",
+    "leaves gaps on some beats of each bar": "You leave gaps on some beats.", "mostly silent, leaving the whole bar empty": "You are leaving whole bars empty." };
   $("modeText").textContent = [MODES[b.harmony_mode] || "", phr[b.phrasing] || ""].filter(Boolean).join(" ");
   const part = (a) => PARTS[a][b.parts[a] || "tacet"] || b.parts[a];
-  logLine(`${String(b.bar + 1).padStart(3)} ${b.phrase_pos + 1}/${b.phrase_bars} · oigo ${b.heard.padEnd(5)} → toco ${b.playing.padEnd(5)} · ` +
-          `energía ${b.energy.toFixed(1)} · ${part("drums")}/${part("bass")}/${part("keys")}`, b.changed ? "info" : "");
+  logLine(`${String(b.bar + 1).padStart(3)} ${b.phrase_pos + 1}/${b.phrase_bars} · heard ${b.heard.padEnd(5)} → play ${b.playing.padEnd(5)} · ` +
+          `energy ${b.energy.toFixed(1)} · ${part("drums")}/${part("bass")}/${part("keys")}`, b.changed ? "info" : "");
 }
 function onSummary(s) {
   const box = $("alerts");
@@ -454,10 +453,10 @@ function onSummary(s) {
     box.lastChild.textContent = s.error;
   }
   (s.warnings || []).forEach(w => { box.insertAdjacentHTML("beforeend", `<div class="warn-box"></div>`); box.lastChild.textContent = "⚠ " + w; });
-  if (s.jev) logLine(`Jev: ${s.jev.on_time} a tiempo, ${s.jev.late} tarde, ${s.jev.errors} errores · mediana ${s.jev.median_ms} ms`, "info");
+  if (s.jev) logLine(`Jev: ${s.jev.on_time} on time, ${s.jev.late} late, ${s.jev.errors} errors · median ${s.jev.median_ms} ms`, "info");
   if (s.folder) {
-    logLine(`sesión grabada en ${s.folder}`, "info");
-    const btn = document.createElement("button"); btn.className = "link"; btn.textContent = "ver la revisión de esta jam";
+    logLine(`session recorded in ${s.folder}`, "info");
+    const btn = document.createElement("button"); btn.className = "link"; btn.textContent = "see this jam's review";
     btn.style.marginTop = "10px"; btn.onclick = () => showReview(s.folder);
     box.appendChild(btn);
   }
@@ -465,7 +464,7 @@ function onSummary(s) {
 }
 async function showReview(folder) {
   $("reviewCard").classList.remove("hidden");
-  $("review").textContent = "analizando…";
+  $("review").textContent = "analysing…";
   const j = await (await fetch("/api/review?folder=" + encodeURIComponent(folder))).json();
   $("review").textContent = j.text || j.error;
   $("reviewCard").scrollIntoView({ behavior: "smooth" });
@@ -486,7 +485,7 @@ function connect() {
   es.addEventListener("bar", e => onBar(JSON.parse(e.data)));
   es.addEventListener("summary", e => onSummary(JSON.parse(e.data)));
   es.addEventListener("level", e => onLevel(JSON.parse(e.data)));
-  es.onerror = () => { setStatus("error", "sin conexión con la app (¿está corriendo?)"); };
+  es.onerror = () => { setStatus("error", "no connection to the app (is it running?)"); };
 }
 
 // ------------------------------------------------------------ vúmetro
@@ -502,10 +501,10 @@ function onLevel(l) {
 }
 function vuVerdict() {
   if (performance.now() - VU.lastEvent > 600) return ["—", ""];
-  if (VU.peakRaw > -1) return ["satura", "bad"];
-  if (VU.rms < -55) return ["sin señal", "bad"];
-  if (VU.rms < -40) return ["muy bajo", "low"];
-  return ["bien", "good"];
+  if (VU.peakRaw > -1) return ["clipping", "bad"];
+  if (VU.rms < -55) return ["no signal", "bad"];
+  if (VU.rms < -40) return ["too low", "low"];
+  return ["good", "good"];
 }
 let vuT = performance.now();
 function vuFrame(t) {
@@ -556,7 +555,7 @@ $("bpmVal").textContent = $("bpm").value; $("demoBpmVal").textContent = $("demo_
 setSeg("input", saved.input || "mic"); setSeg("tempo", saved.tempo || "auto"); setSeg("keymode", saved.keymode || "auto");
 if (PREVIEW) startPreview();
 else {
-  loadOptions().catch(e => setStatus("error", "no puedo hablar con la app: " + e.message));
+  loadOptions().catch(e => setStatus("error", "can't reach the app: " + e.message));
   connect();
 }
 
@@ -571,18 +570,18 @@ function startPreview() {
     { folder: "recordings/session-20260930-150910", started: "2026-09-30 15:09:10", bars: 22, seconds: 57, input: "mic", has_audio: true },
     { folder: "recordings/session-20260930-145800", started: "2026-09-30 14:58:00", bars: 20, seconds: 55, input: "demo", has_audio: true },
   ] };
-  $("keyPill").textContent = "Jev conectado"; $("keyPill").className = "pill ok";
-  $("device").innerHTML = ""; $("device").add(new Option("Audio interface (por defecto)", 0));
+  $("keyPill").textContent = "Jev connected"; $("keyPill").className = "pill ok";
+  $("device").innerHTML = ""; $("device").add(new Option("Audio interface (default)", 0));
   fillChannels();
-  $("out").innerHTML = ""; $("out").add(new Option("Synth integrado (altavoces / auriculares)", "synth"));
+  $("out").innerHTML = ""; $("out").add(new Option("Built-in synth (speakers / headphones)", "synth"));
   fillSessions(options.sessions);
   setSeg("input", "mic"); setSeg("tempo", "fixed"); $("bpm").value = 100; $("bpmVal").textContent = 100;
   setSeg("keymode", "auto");
   setRunning(true);
-  setStatus("playing", "tocando");
+  setStatus("playing", "playing");
   const loop = ["Am", "G", "F", "E"];
   const phrasing = "plays at the start of each bar and leaves space at the end, inviting an answer";
-  logLine("♪ escuchando a 100 BPM; la banda entra en 1.9 s", "info");
+  logLine("♪ listening at 100 BPM; the band comes in in 1.9 s", "info");
   for (let bar = 0; bar < 13; bar++) {
     const heard = bar ? loop[(bar - 1) % 4] : "—", playing = loop[bar % 4];
     const soft = bar < 8;
@@ -590,10 +589,10 @@ function startPreview() {
       parts: soft ? { drums: bar % 4 === 3 ? "fill" : "light_time", bass: "roots_whole", keys: "pads" }
                   : { drums: bar % 4 === 3 ? "fill" : "groove", bass: "octaves", keys: bar >= 12 ? "answer_phrase" : "comping" },
       confidence: { drums: 0.82, bass: 0.74, keys: 0.61 }, latency_ms: 240 + (bar * 37) % 90, reused: false,
-      harmony_mode: bar < 4 ? "anticipated" : "predicted", progression: bar < 4 ? "andaluza (i-VII-VI-V)" : null,
+      harmony_mode: bar < 4 ? "anticipated" : "predicted", progression: bar < 4 ? "Andalusian (i-VII-VI-V)" : null,
       plan: [0, 1, 2, 3].map(k => loop[(bar + k) % 4]), sync_ms: 6 + (bar % 3) * 3, phrasing: bar > 2 ? phrasing : "",
       phrase_pos: bar % 4, phrase_bars: 4, changed: bar % 4 === 0 && bar > 0 };
-    if (b.changed) logLine(`↻ frase nueva → drums: ${b.parts.drums}, bass: ${b.parts.bass}, keys: ${b.parts.keys}`, "info");
+    if (b.changed) logLine(`↻ new phrase → drums: ${b.parts.drums}, bass: ${b.parts.bass}, keys: ${b.parts.keys}`, "info");
     onBar(b);
   }
   let t = 0;  // vúmetro: rasgueo en el pulso 1 que se va apagando, como una guitarra
